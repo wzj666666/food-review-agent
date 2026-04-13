@@ -1,0 +1,86 @@
+nohup: ignoring input
+INFO:     Started server process [3229725]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:5255 (Press CTRL+C to quit)
+INFO:     106.120.57.186:61650 - "GET / HTTP/1.1" 200 OK
+INFO:     106.120.57.186:61650 - "GET /assets/index-CZt-Jcpe.js HTTP/1.1" 304 Not Modified
+INFO:     106.120.57.186:61651 - "GET /assets/index-BPzyTQFa.css HTTP/1.1" 304 Not Modified
+INFO:     106.120.57.186:61650 - "GET /api/me HTTP/1.1" 200 OK
+INFO:     106.120.57.186:61651 - "GET /favicon.ico HTTP/1.1" 200 OK
+INFO:     106.120.57.186:61651 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     106.120.57.186:61650 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     106.120.57.186:60692 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     106.120.57.186:60692 - "GET / HTTP/1.1" 200 OK
+INFO:     106.120.57.186:60694 - "GET /assets/index-CZt-Jcpe.js HTTP/1.1" 304 Not Modified
+INFO:     106.120.57.186:60692 - "GET /assets/index-BPzyTQFa.css HTTP/1.1" 304 Not Modified
+INFO:     106.120.57.186:60692 - "GET /api/me HTTP/1.1" 200 OK
+INFO:     106.120.57.186:60694 - "GET /favicon.ico HTTP/1.1" 200 OK
+INFO:     106.120.57.186:60692 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     106.120.57.186:60694 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55542 - "GET /api/me HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55541 - "GET /favicon.ico HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55542 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55541 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55541 - "GET / HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55541 - "GET /assets/index-CZt-Jcpe.js HTTP/1.1" 304 Not Modified
+INFO:     106.120.57.186:55542 - "GET /assets/index-BPzyTQFa.css HTTP/1.1" 304 Not Modified
+INFO:     106.120.57.186:55541 - "GET /api/me HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55541 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55542 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     106.120.57.186:57128 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55514 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55514 - "GET / HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55520 - "GET /assets/index-BPzyTQFa.css HTTP/1.1" 304 Not Modified
+INFO:     106.120.57.186:55514 - "GET /assets/index-CZt-Jcpe.js HTTP/1.1" 304 Not Modified
+INFO:     106.120.57.186:55520 - "GET /api/me HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55514 - "GET /favicon.ico HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55520 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55514 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55520 - "GET /api/reviews/mine HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55514 - "GET /api/me/stats HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55536 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55548 - "PATCH /api/me HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55590 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55590 - "GET /api/me HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55590 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55592 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55590 - "GET /api/me/stats HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55592 - "GET /api/reviews/mine HTTP/1.1" 200 OK
+INFO:     106.120.57.186:55608 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     223.104.41.204:65356 - "GET / HTTP/1.1" 200 OK
+INFO:     223.104.41.204:65356 - "GET /assets/index-CZt-Jcpe.js HTTP/1.1" 200 OK
+INFO:     223.104.41.204:65357 - "GET /assets/index-BPzyTQFa.css HTTP/1.1" 200 OK
+INFO:     223.104.41.204:65356 - "GET /favicon.ico HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40558 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40558 - "GET /api/me HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40558 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40559 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40560 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40560 - "GET /api/me/stats HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40561 - "GET /api/reviews/mine HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40562 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40563 - "POST /api/ai/chat HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40563 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40564 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     106.120.57.186:61479 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     106.120.57.186:61479 - "GET /api/me HTTP/1.1" 200 OK
+INFO:     106.120.57.186:61479 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     106.120.57.186:61479 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40565 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40565 - "GET /api/me/stats HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40567 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40565 - "GET /api/reviews/mine HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40565 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40567 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     223.104.41.204:65361 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     223.104.41.204:65363 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     223.104.41.204:65364 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40571 - "POST /api/reviews HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40571 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     223.104.41.204:40571 - "GET /api/me/stats HTTP/1.1" 200 OK
+INFO:     223.104.41.204:65367 - "GET /api/reviews/mine HTTP/1.1" 200 OK
+INFO:     223.104.41.204:65366 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     223.104.41.204:65367 - "GET /api/regions HTTP/1.1" 200 OK
+INFO:     223.104.41.204:65366 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK
+INFO:     223.104.41.204:65368 - "GET /api/reviews?sort=time_desc HTTP/1.1" 200 OK

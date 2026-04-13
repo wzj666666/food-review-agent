@@ -1,5 +1,13 @@
 const TOKEN_KEY = "dp_token";
 
+/** 无末尾斜杠；空字符串表示与当前页面同源（浏览器走 FastAPI、或 Capacitor 使用 server.url 时） */
+const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN as string | undefined)?.replace(/\/$/, "") ?? "";
+
+function apiUrl(path: string): string {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${API_ORIGIN}${p}`;
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -18,7 +26,7 @@ async function apiFetch(path: string, init: RequestInit = {}) {
     headers["Content-Type"] = "application/json";
   }
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(path, { ...init, headers });
+  const res = await fetch(apiUrl(path), { ...init, headers });
   if (res.status === 401) {
     setToken(null);
     throw new Error("UNAUTHORIZED");
@@ -156,7 +164,7 @@ export async function aiChatStream(
   onDelta: (chunk: string) => void,
 ): Promise<void> {
   const token = getToken();
-  const res = await fetch("/api/ai/chat", {
+  const res = await fetch(apiUrl("/api/ai/chat"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
