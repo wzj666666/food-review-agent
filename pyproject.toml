@@ -1,0 +1,21 @@
+[project]
+name = "my-dianping"
+version = "0.1.0"
+description = "个人点评：FastAPI + SQLite 后端"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.32.1",
+    "sqlalchemy==2.0.36",
+    "python-jose[cryptography]==3.3.0",
+    "passlib[bcrypt]==1.7.4",
+    # passlib 1.7.4 与 bcrypt>=4.1 不兼容（4.1 起移除 __about__，会报 AttributeError）
+    "bcrypt==4.0.1",
+    "python-multipart==0.0.17",
+    "httpx==0.28.1",
+    "pydantic-settings==2.6.1",
+]
+
+[tool.uv]
+# 应用仓库：只装依赖，不把当前目录当作可安装的 Python 包
+package = false
