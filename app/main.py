@@ -47,6 +47,10 @@ def on_startup():
             col_names = {row[1] for row in rows}
             if "images_json" not in col_names:
                 conn.execute(text("ALTER TABLE reviews ADD COLUMN images_json TEXT NOT NULL DEFAULT '[]'"))
+            if "recommend_tier" not in col_names:
+                conn.execute(
+                    text("ALTER TABLE reviews ADD COLUMN recommend_tier VARCHAR(16) NOT NULL DEFAULT '人上人'")
+                )
 
 
 @app.get("/api/health")

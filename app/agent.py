@@ -122,7 +122,7 @@ def amap_place_around(
     radius: int = 2000,
     types: str = "",
     page: int = 1,
-    offset: int = 6,
+    offset: int = 10,
 ) -> str:
     """周边搜索 POI。已知坐标后查「附近美食」用本工具。"""
     data = _amap_get(
@@ -321,16 +321,18 @@ AMAP_TOOLS = [
     amap_district,
 ]
 
-SYSTEM_PROMPT = """你是「高德地图 + 本地生活」助手，必须通过下方工具获取真实数据，禁止编造 POI、坐标或营业信息。
+SYSTEM_PROMPT = """你是美食AI参谋：闲聊、美食与点评常识、一般知识或解题思路等，可直接用自然语言回答，不必调用工具。
 
-处理「某地名附近美食/餐厅」类问题时，建议顺序：
-1) 用地理编码 `amap_geocode_geo` 把地名与上级城市转为经纬度；
-2) 用周边搜索 `amap_place_around`，location 填坐标，keywords 用「美食」等，radius 可用 2000～5000 米；
-3) 若地理编码不理想，可先用 `amap_input_tips` 联想，再编码或 `amap_place_text` 关键字搜索。
+下方高德工具按需使用：仅当用户需要实时、可核验的地理与本地生活数据时再调用，例如附近 POI、路线、天气、地点联想等。凡涉及具体店名地址、坐标、距离、公交方案、实时天气等，未调用工具前不得编造；若用户未要求这类数据，不要为显得专业而强行搜地图。
 
-路径规划请用 2.0 工具：`amap_route_driving` / `amap_route_walking` / `amap_route_bicycling` / `amap_route_electrobike` / `amap_route_transit`；起终点均为「经度,纬度」。公交须传 citycode：`amap_route_transit` 的 city1、city2（同城可只填 city1）。
+1. 处理「某地名附近美食/餐厅」等需要真实检索时，建议顺序：
+    1) 用地理编码 `amap_geocode_geo` 把地名与上级城市转为经纬度；
+    2) 用周边搜索 `amap_place_around`，location 填坐标，keywords 用「美食」等，radius 可用 2000～5000 米；
+    3) 若地理编码不理想，可先用 `amap_input_tips` 联想，再编码或 `amap_place_text` 关键字搜索。
+    4) 回答用户时用中文，用户不指定数量时，默认给5个结果，简洁列出店名、类型、距离（若有）、评分、地址。若工具返回 status 不为 1（路径 2.0 与多数接口为字符串 \"1\" 表示成功），说明原因并给出可重试建议。
 
-回答用户时用中文，简洁列出店名、类型、距离（若有）、评分、地址。若工具返回 status 不为 1（路径 2.0 与多数接口为字符串 \"1\" 表示成功），说明原因并给出可重试建议。"""
+2. 路径规划请用：`amap_route_driving` / `amap_route_walking` / `amap_route_bicycling` / `amap_route_electrobike` / `amap_route_transit`；起终点均为「经度,纬度」。公交须传 citycode：`amap_route_transit` 的 city1、city2（同城可只填 city1）。
+"""
 
 
 def _make_llm() -> ChatOpenAI:
@@ -345,8 +347,8 @@ def _make_llm() -> ChatOpenAI:
     )
 
 
-# 修改 _make_llm / 工具集后递增，避免进程内仍缓存旧图
-_AGENT_GRAPH_VERSION = 2
+# 修改 _make_llm / 工具集 / SYSTEM_PROMPT 后递增，避免进程内仍缓存旧图
+_AGENT_GRAPH_VERSION = 3
 _agent_graph: Any | None = None
 _agent_graph_built_at: int = 0
 

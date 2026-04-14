@@ -1,8 +1,21 @@
 import { useEffect, useRef, useState } from "react";
+import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { aiChatStream } from "../api";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string };
+
+/** 宽表格横向滚动 */
+const CHAT_MD_COMPONENTS: Partial<Components> = {
+  table({ children, ...props }) {
+    return (
+      <div className="table-wrap">
+        <table {...props}>{children}</table>
+      </div>
+    );
+  },
+};
 
 function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -15,7 +28,7 @@ export function AITab() {
       id: newId(),
       role: "assistant",
       content:
-        "嗨，我是美食小参谋～已接入高德：周边美食、路线（驾车/步行/骑行/电动车/公交）、天气、地点搜索等会用实时数据回答；也欢迎聊美食与点评～",
+        "嗨，我是美食小参谋～如果你想了解周边美食、规划路线、查询天气、地点搜索等，我会用实时数据回答，我也可以回答和点评相关的问题～",
     },
   ]);
   const [input, setInput] = useState("");
@@ -74,7 +87,8 @@ export function AITab() {
   return (
     <div style={{ padding: "16px 16px 8px", display: "flex", flexDirection: "column", height: "calc(100dvh - 88px)" }}>
       <header>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>美食小参谋</div>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 0.2 }}>美食小参谋</div>
+        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>你的AI参谋</div>
       </header>
 
       {error && (
@@ -89,12 +103,15 @@ export function AITab() {
               marginBottom: 12,
               display: "flex",
               justifyContent: m.role === "user" ? "flex-end" : "flex-start",
+              width: "100%",
+              minWidth: 0,
             }}
           >
             <div
               className={m.role === "user" ? "chat-bubble-user" : "chat-bubble-assistant"}
               style={{
                 maxWidth: "92%",
+                minWidth: 0,
                 padding: "10px 12px",
                 borderRadius: 16,
                 lineHeight: 1.55,
@@ -104,7 +121,13 @@ export function AITab() {
             >
               {m.role === "assistant" ? (
                 m.content ? (
-                  <ReactMarkdown className="chat-md">{m.content}</ReactMarkdown>
+                  <ReactMarkdown
+                    className="chat-md"
+                    remarkPlugins={[remarkGfm]}
+                    components={CHAT_MD_COMPONENTS}
+                  >
+                    {m.content}
+                  </ReactMarkdown>
                 ) : loading ? (
                   "…"
                 ) : (

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RegionProvince, Review } from "../api";
 import { createReview, deleteUploadedImage, updateReview, uploadReviewImage } from "../api";
+import { RECOMMEND_TIERS, type RecommendTier } from "../recommendTier";
 import { ReviewImageGallery } from "./ReviewImageGallery";
 
 /** 新建时的默认地点（与 app/data/regions.json 一致） */
@@ -32,6 +33,7 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
   const [avgPrice, setAvgPrice] = useState<number | "">("");
   const [dishes, setDishes] = useState<string[]>([""]);
   const [content, setContent] = useState("");
+  const [recommendTier, setRecommendTier] = useState<RecommendTier>("人上人");
   const [images, setImages] = useState<string[]>([]);
   const [imgBusy, setImgBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -52,6 +54,11 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       setAvgPrice(initial.avg_price);
       setDishes(initial.dishes.length > 0 ? [...initial.dishes] : [""]);
       setContent(initial.content);
+      setRecommendTier(
+        RECOMMEND_TIERS.includes(initial.recommend_tier as RecommendTier)
+          ? (initial.recommend_tier as RecommendTier)
+          : "人上人",
+      );
       setImages(Array.isArray(initial.images) ? [...initial.images] : []);
     } else {
       setRestaurantName("");
@@ -66,6 +73,7 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       setAvgPrice("");
       setDishes([""]);
       setContent("");
+      setRecommendTier("人上人");
       setImages([]);
     }
     setError(null);
@@ -157,6 +165,7 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       value_score: value,
       avg_price: Number(avgPrice),
       dishes: dishList,
+      recommend_tier: recommendTier,
       images,
       content: content.trim(),
     };
@@ -279,6 +288,31 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
             外卖仅评口味与性价比；综合分会按两项平均计算。
           </div>
         )}
+
+        <label className="label" style={{ marginTop: 12 }}>
+          推荐度
+        </label>
+        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>这家店在你心里的档位</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {RECOMMEND_TIERS.map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={recommendTier === t ? "btn-primary" : "btn-ghost"}
+              style={{
+                flex: "1 1 auto",
+                minWidth: "calc(33% - 6px)",
+                width: "auto",
+                padding: "8px 6px",
+                fontSize: 13,
+                fontWeight: 700,
+              }}
+              onClick={() => setRecommendTier(t)}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
 
         <label className="label" style={{ marginTop: 8 }}>
           人均（元）

@@ -58,8 +58,11 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {/* 点评 / 我的：仅当前 Tab 挂载，切换即刷新；参谋：始终挂载，离开参谋再回来仍保留对话 */}
       {tab === "reviews" && <ReviewsTab />}
-      {tab === "ai" && <AITab />}
+      <div style={{ display: tab === "ai" ? "block" : "none" }}>
+        <AITab />
+      </div>
       {tab === "me" && <ProfileTab user={user} onUserUpdated={setUser} onLogout={logout} />}
 
       <nav className="tabs" aria-label="主导航">

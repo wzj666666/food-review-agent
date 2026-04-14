@@ -37,6 +37,7 @@ class Review(Base):
     avg_price: Mapped[int] = mapped_column(Integer, nullable=False)
     dishes_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON array of strings
     images_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON array of URL paths /uploads/uid/file
+    recommend_tier: Mapped[str] = mapped_column(String(16), nullable=False, default="人上人", server_default="人上人")
     content: Mapped[str] = mapped_column(String(500), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True

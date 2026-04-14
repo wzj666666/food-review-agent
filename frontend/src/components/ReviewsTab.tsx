@@ -1,16 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RegionProvince, Review, SortKey } from "../api";
 import { fetchRegions, fetchReviews } from "../api";
+import { formatDateTimeBeijing } from "../datetime";
+import { RecommendTierBadge } from "../recommendTier";
 import { ReviewEditorSheet } from "./ReviewEditorSheet";
 import { ReviewImageGallery } from "./ReviewImageGallery";
-
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(
-    d.getHours(),
-  ).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
 
 function diningLabel(t: string) {
   return t === "takeaway" ? "外卖" : "堂食";
@@ -173,10 +167,26 @@ export function ReviewsTab() {
           list.map((r) => (
             <article key={r.id} className="card" style={{ padding: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
-                <div style={{ fontWeight: 800, fontSize: 17 }}>{r.restaurant_name}</div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) auto",
+                    gap: 10,
+                    alignItems: "start",
+                    flex: 1,
+                    minWidth: 0,
+                  }}
+                >
+                  <div style={{ fontWeight: 800, fontSize: 17, lineHeight: 1.3, wordBreak: "break-word" }}>
+                    {r.restaurant_name}
+                  </div>
+                  <div style={{ flexShrink: 0, paddingTop: 1 }}>
+                    <RecommendTierBadge tier={r.recommend_tier} />
+                  </div>
+                </div>
                 <div className="score-badge">{r.overall_score.toFixed(1)}</div>
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, alignItems: "center" }}>
                 <span className="chip">{diningLabel(r.dining_type)}</span>
                 <span className="chip">
                   {r.city}
@@ -205,7 +215,7 @@ export function ReviewsTab() {
               )}
               <ReviewImageGallery paths={r.images ?? []} />
               <ExpandableReviewContent text={r.content} />
-              <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>{formatTime(r.created_at)}</div>
+              <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>{formatDateTimeBeijing(r.created_at)}</div>
             </article>
           ))}
       </div>

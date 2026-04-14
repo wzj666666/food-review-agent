@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Review, User
+from app.recommend_tier import normalize_recommend_tier
 from app.schemas import ReviewCreate, ReviewOut
 from app.upload_paths import delete_files_for_paths, fs_path_for_url, parse_images_json
 
@@ -58,6 +59,7 @@ def _to_out(r: Review, author: User) -> ReviewOut:
         value_score=r.value_score,
         avg_price=r.avg_price,
         dishes=[str(x) for x in dishes],
+        recommend_tier=normalize_recommend_tier(getattr(r, "recommend_tier", None)),
         images=imgs,
         content=r.content,
         created_at=r.created_at,
@@ -121,6 +123,7 @@ def create_review(
         value_score=float(body.value_score),
         avg_price=int(body.avg_price),
         dishes_json=json.dumps(body.dishes, ensure_ascii=False),
+        recommend_tier=body.recommend_tier,
         images_json=_images_json_for_save(user.id, body.images),
         content=body.content.strip()[:500],
     )
@@ -166,6 +169,7 @@ def update_review(
     r.value_score = float(body.value_score)
     r.avg_price = int(body.avg_price)
     r.dishes_json = json.dumps(body.dishes, ensure_ascii=False)
+    r.recommend_tier = body.recommend_tier
     r.images_json = new_json
     r.content = body.content.strip()[:500]
     db.add(r)

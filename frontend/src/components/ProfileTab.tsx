@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RegionProvince, Review, UserPublic } from "../api";
 import { deleteReview, fetchMyReviews, fetchRegions, fetchStats, updateMe } from "../api";
+import { RecommendTierBadge } from "../recommendTier";
 import { ReviewEditorSheet } from "./ReviewEditorSheet";
 import { ReviewImageGallery } from "./ReviewImageGallery";
 
@@ -120,7 +121,19 @@ export function ProfileTab({ user, onUserUpdated, onLogout }: Props) {
           <div key={r.id} className="card" style={{ padding: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700 }}>{r.restaurant_name}</div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) auto",
+                    gap: 10,
+                    alignItems: "start",
+                  }}
+                >
+                  <div style={{ fontWeight: 700, lineHeight: 1.3, wordBreak: "break-word" }}>{r.restaurant_name}</div>
+                  <div style={{ flexShrink: 0, paddingTop: 1 }}>
+                    <RecommendTierBadge tier={r.recommend_tier} />
+                  </div>
+                </div>
                 <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
                   {r.city}
                   {r.district ? ` · ${r.district}` : ""} · 综合 {r.overall_score.toFixed(1)}

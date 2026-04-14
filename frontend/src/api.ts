@@ -90,6 +90,7 @@ export type Review = {
   value_score: number;
   avg_price: number;
   dishes: string[];
+  recommend_tier?: string;
   images: string[];
   content: string;
   created_at: string;
@@ -158,6 +159,7 @@ export type ReviewPayload = {
   value_score: number;
   avg_price: number;
   dishes: string[];
+  recommend_tier: "夯" | "顶级" | "人上人" | "NPC" | "拉完了";
   images?: string[];
   content: string;
 };

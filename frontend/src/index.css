@@ -127,6 +127,52 @@ a {
   color: var(--muted);
 }
 
+/* 点评推荐度（五档颜色区分；与店名 grid 同排） */
+.rec-tier {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  border: 1px solid transparent;
+  min-height: 28px;
+}
+
+/* 夯 → 深绿；顶级 → 浅绿；人上人 → 橙；NPC → 黄；拉完了 → 灰 */
+.rec-tier--hang {
+  background: #14532d;
+  color: #ecfdf5;
+  border-color: rgba(20, 83, 45, 0.85);
+}
+
+.rec-tier--top {
+  background: #bbf7d0;
+  color: #14532d;
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.rec-tier--boss {
+  background: #ffedd5;
+  color: #9a3412;
+  border-color: rgba(249, 115, 22, 0.55);
+}
+
+.rec-tier--npc {
+  background: #fef9c3;
+  color: #854d0e;
+  border-color: rgba(234, 179, 8, 0.65);
+}
+
+.rec-tier--done {
+  background: #e7e5e4;
+  color: #57534e;
+  border-color: rgba(120, 113, 108, 0.45);
+}
+
 .tabs {
   position: fixed;
   left: 0;
@@ -236,11 +282,12 @@ a {
   border: 1px solid var(--border);
 }
 
-/* AI 气泡内 Markdown */
+/* AI 气泡内 Markdown（min-width 便于窄屏 flex 子项内横向滚动） */
 .chat-md {
   font-size: inherit;
   line-height: 1.55;
   word-break: break-word;
+  min-width: 0;
 }
 
 .chat-md p {
@@ -309,4 +356,42 @@ a {
   padding-left: 0.75em;
   border-left: 3px solid var(--accent-soft);
   color: var(--muted);
+}
+
+.chat-md .table-wrap {
+  margin: 0.5em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+}
+
+.chat-md table {
+  /* 宽表按内容宽度展开，在 .table-wrap 内横向滑动；窄表仍铺满气泡 */
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.chat-md th,
+.chat-md td {
+  border: 1px solid var(--border);
+  padding: 0.45em 0.65em;
+  text-align: left;
+  vertical-align: top;
+}
+
+.chat-md th {
+  background: rgba(74, 55, 40, 0.08);
+  font-weight: 700;
+}
+
+.chat-md tr:nth-child(even) td {
+  background: rgba(74, 55, 40, 0.03);
 }

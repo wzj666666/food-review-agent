@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.recommend_tier import RecommendTier
 
 class Token(BaseModel):
     access_token: str
@@ -50,6 +51,7 @@ class ReviewCreate(BaseModel):
     value_score: float = Field(ge=0, le=5)
     avg_price: int = Field(ge=0, le=999999)
     dishes: list[str] = Field(default_factory=list)
+    recommend_tier: RecommendTier = Field(default="人上人", description="推荐度：夯 / 顶级 / 人上人 / NPC / 拉完了")
     content: str = Field(min_length=1, max_length=500)
     images: list[str] = Field(default_factory=list, description="配图 URL 路径，最多 9 张")
 
@@ -91,6 +93,7 @@ class ReviewOut(BaseModel):
     value_score: float
     avg_price: int
     dishes: list[str]
+    recommend_tier: str
     images: list[str] = Field(default_factory=list)
     content: str
     created_at: datetime
