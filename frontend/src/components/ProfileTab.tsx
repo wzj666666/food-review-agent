@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { RegionProvince, Review, UserPublic } from "../api";
 import { deleteReview, fetchMyReviews, fetchRegions, fetchStats, updateMe } from "../api";
 import { ReviewEditorSheet } from "./ReviewEditorSheet";
+import { ReviewImageGallery } from "./ReviewImageGallery";
 
 type Props = {
   user: UserPublic;
@@ -153,6 +154,7 @@ export function ProfileTab({ user, onUserUpdated, onLogout }: Props) {
             {r.dishes.length > 0 && (
               <div style={{ marginTop: 6, fontSize: 13 }}>推荐菜：{r.dishes.join("、")}</div>
             )}
+            <ReviewImageGallery paths={r.images ?? []} />
             {r.content && (
               <div
                 style={{

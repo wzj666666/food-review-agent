@@ -36,6 +36,7 @@ class Review(Base):
     value_score: Mapped[float] = mapped_column(Float, nullable=False)
     avg_price: Mapped[int] = mapped_column(Integer, nullable=False)
     dishes_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON array of strings
+    images_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON array of URL paths /uploads/uid/file
     content: Mapped[str] = mapped_column(String(500), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True

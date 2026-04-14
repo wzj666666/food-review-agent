@@ -4,9 +4,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
+from starlette.formparsers import MultiPartParser
 
 from app.database import Base, engine
-from app.routers import ai, auth, regions, reviews, user
+from app.routers import ai, auth, regions, reviews, uploads, user
+from app.upload_paths import UPLOADS_ROOT
+
+# Starlette 默认 multipart 单段约 1MB，超过会解析失败；与单张 10MB 配图上限对齐
+MultiPartParser.max_part_size = 12 * 1024 * 1024
+MultiPartParser.max_file_size = 12 * 1024 * 1024
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
@@ -25,11 +32,21 @@ app.include_router(reviews.router)
 app.include_router(user.router)
 app.include_router(regions.router)
 app.include_router(ai.router)
+app.include_router(uploads.router)
+
+UPLOADS_ROOT.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_ROOT)), name="uploads")
 
 
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    if engine.dialect.name == "sqlite":
+        with engine.begin() as conn:
+            rows = conn.execute(text("PRAGMA table_info(reviews)")).fetchall()
+            col_names = {row[1] for row in rows}
+            if "images_json" not in col_names:
+                conn.execute(text("ALTER TABLE reviews ADD COLUMN images_json TEXT NOT NULL DEFAULT '[]'"))
 
 
 @app.get("/api/health")

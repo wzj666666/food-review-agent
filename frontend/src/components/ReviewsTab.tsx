@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { RegionProvince, Review, SortKey } from "../api";
 import { fetchRegions, fetchReviews } from "../api";
 import { ReviewEditorSheet } from "./ReviewEditorSheet";
+import { ReviewImageGallery } from "./ReviewImageGallery";
 
 function formatTime(iso: string) {
   const d = new Date(iso);
@@ -202,6 +203,7 @@ export function ReviewsTab() {
                   {r.dishes.join("、")}
                 </div>
               )}
+              <ReviewImageGallery paths={r.images ?? []} />
               <ExpandableReviewContent text={r.content} />
               <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>{formatTime(r.created_at)}</div>
             </article>

@@ -11,6 +11,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import Review, User
 from app.schemas import AIChatRequest
+from app.upload_paths import parse_images_json
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
@@ -47,11 +48,14 @@ def _build_reviews_knowledge(db: Session) -> tuple[str, int]:
         wai = "（外卖：口味与性价比为本人填写；服务/环境为参考估算）" if r.dining_type == "takeaway" else ""
         ov = round((r.taste_score + r.service_score + r.environment_score + r.value_score) / 4.0, 2)
         uname = users.get(r.user_id, "?")
+        n_img = len(parse_images_json(getattr(r, "images_json", None) or "[]"))
+        img_note = f"配图 {n_img} 张" if n_img else "无配图"
         block = (
             f"【{i}】店名：{r.restaurant_name} | 就餐：{r.dining_type} | 用户：@{uname}\n"
             f"地点：{(r.province or '') + r.city + (r.district or '')} | 人均：{r.avg_price} 元\n"
             f"口味 {r.taste_score} · 服务 {r.service_score} · 环境 {r.environment_score} · 性价比 {r.value_score} · 综合 {ov} {wai}\n"
             f"推荐菜：{dishes_str}\n"
+            f"{img_note}\n"
             f"评价正文：{r.content}\n"
             f"记录时间：{r.created_at}"
         )

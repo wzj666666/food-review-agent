@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RegionProvince, Review } from "../api";
-import { createReview, updateReview } from "../api";
+import { createReview, deleteUploadedImage, updateReview, uploadReviewImage } from "../api";
+import { ReviewImageGallery } from "./ReviewImageGallery";
 
 /** 新建时的默认地点（与 app/data/regions.json 一致） */
 export const DEFAULT_REVIEW_LOCATION = {
@@ -31,6 +32,9 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
   const [avgPrice, setAvgPrice] = useState<number | "">("");
   const [dishes, setDishes] = useState<string[]>([""]);
   const [content, setContent] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [imgBusy, setImgBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +52,7 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       setAvgPrice(initial.avg_price);
       setDishes(initial.dishes.length > 0 ? [...initial.dishes] : [""]);
       setContent(initial.content);
+      setImages(Array.isArray(initial.images) ? [...initial.images] : []);
     } else {
       setRestaurantName("");
       setDiningType("dine_in");
@@ -61,6 +66,7 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       setAvgPrice("");
       setDishes([""]);
       setContent("");
+      setImages([]);
     }
     setError(null);
   }, [initial]);
@@ -73,6 +79,53 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
     regions.find((p) => p.name === province)?.cities.find((c) => c.name === city)?.districts ?? [];
 
   const addDishRow = () => setDishes((d) => [...d, ""]);
+
+  const handlePickImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    // 必须先拷贝 File 列表再清空 value：FileList 与 input 绑定，清空后 length 会变为 0，导致永远不发起上传
+    const arr = input.files && input.files.length > 0 ? Array.from(input.files) : [];
+    input.value = "";
+    if (!arr.length) return;
+    setImgBusy(true);
+    setError(null);
+    const isLikelyImage = (file: File) => {
+      if (file.type.startsWith("image/")) return true;
+      if (!file.type && /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(file.name)) return true;
+      // 部分安卓相册：无 MIME、无扩展名，仍可能是照片
+      if (!file.type && !file.name && file.size > 0 && file.size <= 12 * 1024 * 1024) return true;
+      return false;
+    };
+    try {
+      let cur = [...images];
+      let attempted = 0;
+      for (const file of arr) {
+        if (cur.length >= 9) break;
+        if (!isLikelyImage(file)) continue;
+        attempted += 1;
+        const { path } = await uploadReviewImage(file);
+        cur = [...cur, path];
+      }
+      setImages(cur.slice(0, 9));
+      if (attempted === 0 && arr.length > 0) {
+        setError("未识别为可上传图片（手机相册常无 MIME，请选 JPG/PNG；苹果「高效」格式为 HEIC，本应用已支持）");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "图片上传失败");
+    } finally {
+      setImgBusy(false);
+    }
+  };
+
+  const removeImage = async (p: string) => {
+    if (!isEdit) {
+      try {
+        await deleteUploadedImage(p);
+      } catch {
+        /* 仍从列表移除 */
+      }
+    }
+    setImages((im) => im.filter((x) => x !== p));
+  };
 
   const save = async () => {
     setError(null);
@@ -104,6 +157,7 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       value_score: value,
       avg_price: Number(avgPrice),
       dishes: dishList,
+      images,
       content: content.trim(),
     };
     setSaving(true);
@@ -262,6 +316,33 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
         <button type="button" className="btn-ghost" style={{ width: "100%", marginBottom: 8 }} onClick={addDishRow}>
           + 再加一道
         </button>
+
+        <label className="label" style={{ marginTop: 12 }}>
+          配图（最多 9 张）
+        </label>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.gif"
+          multiple
+          hidden
+          onChange={(e) => void handlePickImages(e)}
+        />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn-ghost"
+            style={{ width: "auto" }}
+            disabled={imgBusy || images.length >= 9}
+            onClick={() => fileRef.current?.click()}
+          >
+            {imgBusy ? "上传中…" : images.length >= 9 ? "已达 9 张" : "选择图片"}
+          </button>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>已选 {images.length}/9</span>
+        </div>
+        {images.length > 0 && (
+          <ReviewImageGallery paths={images} editable onRemove={(p) => void removeImage(p)} />
+        )}
 
         <label className="label">详细说一说吧</label>
         <textarea

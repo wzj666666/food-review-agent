@@ -9,12 +9,30 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import Review, User
 from app.schemas import ReviewCreate, ReviewOut
+from app.upload_paths import delete_files_for_paths, fs_path_for_url, parse_images_json
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 
 
 def _overall(r: Review) -> float:
     return (r.taste_score + r.service_score + r.environment_score + r.value_score) / 4.0
+
+
+def _images_json_for_save(user_id: int, paths: list[str]) -> str:
+    if len(paths) > 9:
+        raise HTTPException(status_code=400, detail="最多 9 张配图")
+    seen: set[str] = set()
+    out: list[str] = []
+    for p in paths:
+        p = (p or "").strip()
+        if not p or p in seen:
+            continue
+        loc = fs_path_for_url(p, user_id)
+        if not loc or not loc.is_file():
+            raise HTTPException(status_code=400, detail=f"无效或未上传的图片: {p}")
+        seen.add(p)
+        out.append(p)
+    return json.dumps(out, ensure_ascii=False)
 
 
 def _to_out(r: Review, author: User) -> ReviewOut:
@@ -24,6 +42,7 @@ def _to_out(r: Review, author: User) -> ReviewOut:
             dishes = []
     except json.JSONDecodeError:
         dishes = []
+    imgs = parse_images_json(getattr(r, "images_json", None) or "[]")
     return ReviewOut(
         id=r.id,
         user_id=r.user_id,
@@ -39,6 +58,7 @@ def _to_out(r: Review, author: User) -> ReviewOut:
         value_score=r.value_score,
         avg_price=r.avg_price,
         dishes=[str(x) for x in dishes],
+        images=imgs,
         content=r.content,
         created_at=r.created_at,
         overall_score=round(_overall(r), 2),
@@ -101,6 +121,7 @@ def create_review(
         value_score=float(body.value_score),
         avg_price=int(body.avg_price),
         dishes_json=json.dumps(body.dishes, ensure_ascii=False),
+        images_json=_images_json_for_save(user.id, body.images),
         content=body.content.strip()[:500],
     )
     db.add(r)
@@ -128,6 +149,12 @@ def update_review(
     r = db.query(Review).filter(Review.id == review_id, Review.user_id == user.id).first()
     if not r:
         raise HTTPException(status_code=404, detail="点评不存在或无权修改")
+    old_imgs = parse_images_json(getattr(r, "images_json", None) or "[]")
+    new_json = _images_json_for_save(user.id, body.images)
+    new_imgs = parse_images_json(new_json)
+    removed = [p for p in old_imgs if p not in new_imgs]
+    if removed:
+        delete_files_for_paths(removed, user.id)
     r.restaurant_name = body.restaurant_name.strip()
     r.dining_type = body.dining_type
     r.province = body.province.strip() if body.province else ""
@@ -139,6 +166,7 @@ def update_review(
     r.value_score = float(body.value_score)
     r.avg_price = int(body.avg_price)
     r.dishes_json = json.dumps(body.dishes, ensure_ascii=False)
+    r.images_json = new_json
     r.content = body.content.strip()[:500]
     db.add(r)
     db.commit()
@@ -155,5 +183,8 @@ def delete_review(
     r = db.query(Review).filter(Review.id == review_id, Review.user_id == user.id).first()
     if not r:
         raise HTTPException(status_code=404, detail="点评不存在或无权删除")
+    imgs = parse_images_json(getattr(r, "images_json", None) or "[]")
+    if imgs:
+        delete_files_for_paths(imgs, user.id)
     db.delete(r)
     db.commit()

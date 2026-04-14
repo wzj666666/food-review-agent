@@ -51,6 +51,13 @@ class ReviewCreate(BaseModel):
     avg_price: int = Field(ge=0, le=999999)
     dishes: list[str] = Field(default_factory=list)
     content: str = Field(min_length=1, max_length=500)
+    images: list[str] = Field(default_factory=list, description="配图 URL 路径，最多 9 张")
+
+    @field_validator("images")
+    @classmethod
+    def cap_images(cls, v: list[str]) -> list[str]:
+        out = [x.strip() for x in v if x and str(x).strip()]
+        return out[:9]
 
     @field_validator("dishes")
     @classmethod
@@ -84,12 +91,17 @@ class ReviewOut(BaseModel):
     value_score: float
     avg_price: int
     dishes: list[str]
+    images: list[str] = Field(default_factory=list)
     content: str
     created_at: datetime
     overall_score: float
 
     class Config:
         from_attributes = True
+
+
+class UploadedImagePath(BaseModel):
+    path: str = Field(min_length=8, max_length=512)
 
 
 class AIChatMessage(BaseModel):

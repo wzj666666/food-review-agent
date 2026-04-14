@@ -8,6 +8,13 @@ function apiUrl(path: string): string {
   return `${API_ORIGIN}${p}`;
 }
 
+/** 点评配图、上传文件等静态路径（与页面可能不同源时使用 VITE_API_ORIGIN） */
+export function mediaUrl(path: string): string {
+  if (!path) return "";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  return apiUrl(path);
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -72,6 +79,7 @@ export type Review = {
   value_score: number;
   avg_price: number;
   dishes: string[];
+  images: string[];
   content: string;
   created_at: string;
   overall_score: number;
@@ -139,8 +147,42 @@ export type ReviewPayload = {
   value_score: number;
   avg_price: number;
   dishes: string[];
+  images?: string[];
   content: string;
 };
+
+export async function uploadReviewImage(file: File): Promise<{ path: string }> {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(apiUrl("/api/uploads/review-image"), {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  });
+  if (res.status === 401) {
+    setToken(null);
+    throw new Error("UNAUTHORIZED");
+  }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const j = (await res.json()) as { detail?: string };
+      if (typeof j.detail === "string") detail = j.detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+  return res.json() as Promise<{ path: string }>;
+}
+
+export async function deleteUploadedImage(path: string): Promise<void> {
+  await apiFetch("/api/uploads/review-image/delete", {
+    method: "POST",
+    body: JSON.stringify({ path }),
+  });
+}
 
 export async function createReview(body: ReviewPayload) {
   return apiFetch("/api/reviews", { method: "POST", body: JSON.stringify(body) }) as Promise<Review>;
