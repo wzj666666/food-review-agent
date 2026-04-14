@@ -1,5 +1,16 @@
 const TOKEN_KEY = "dp_token";
 
+/** 同一次 fetch read 里会解析出多行 SSE；若连续 onDelta→setState，React 18 会批成一次渲染，看起来像非流式。 */
+function yieldToBrowser(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame !== "undefined") {
+      requestAnimationFrame(() => resolve());
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
+
 /** 无末尾斜杠；空字符串表示与当前页面同源（浏览器走 FastAPI、或 Capacitor 使用 server.url 时） */
 const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN as string | undefined)?.replace(/\/$/, "") ?? "";
 
@@ -200,16 +211,21 @@ export async function fetchMyReviews() {
   return apiFetch("/api/reviews/mine") as Promise<Review[]>;
 }
 
-/** 流式调用 /api/ai/chat（SSE），仅拼接 delta.content，忽略 reasoning。 */
+export type AdvisorToolEvent = { type: "tool_start" | "tool_end"; name: string };
+
+/** 流式调用 /api/ai/chat（SSE）：OpenAI 风格 delta.content；高德 Agent 另发 tool_start / tool_end。 */
 export async function aiChatStream(
   messages: { role: "user" | "assistant"; content: string }[],
   onDelta: (chunk: string) => void,
+  onToolEvent?: (ev: AdvisorToolEvent) => void,
 ): Promise<void> {
   const token = getToken();
   const res = await fetch(apiUrl("/api/ai/chat"), {
     method: "POST",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
+      Accept: "text/event-stream",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ messages }),
@@ -253,11 +269,22 @@ export async function aiChatStream(
       if (payload === "[DONE]") return;
       try {
         const j = JSON.parse(payload) as {
+          type?: string;
+          name?: string;
           choices?: { delta?: { content?: string | null; reasoning_content?: string | null } }[];
         };
+        if (j.type === "tool_start" || j.type === "tool_end") {
+          if (typeof j.name === "string" && j.name.length > 0) {
+            onToolEvent?.({ type: j.type, name: j.name });
+          }
+          continue;
+        }
         const d = j.choices?.[0]?.delta;
         const piece = d?.content;
-        if (typeof piece === "string" && piece.length > 0) onDelta(piece);
+        if (typeof piece === "string" && piece.length > 0) {
+          onDelta(piece);
+          await yieldToBrowser();
+        }
       } catch {
         /* 非 JSON 行或截断，忽略 */
       }

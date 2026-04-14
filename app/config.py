@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +19,18 @@ class Settings(BaseSettings):
     ai_api_key: str | None = Field(default=None, description="环境变量 AI_API_KEY，需与 vLLM 启动时的 --api-key 相同")
     # 注入 vLLM 的「全部点评」文本上限，避免上下文爆炸
     ai_reviews_context_max_chars: int = Field(default=120_000, description="环境变量 AI_REVIEWS_CONTEXT_MAX_CHARS")
+    amap_key: str | None = Field(default=None, description="环境变量 AMAP_KEY，高德 Web 服务")
+    debug_amap_agent: bool = Field(default=False, description="环境变量 DEBUG_AMAP_AGENT，打印 Agent messages")
+
+    @field_validator("debug_amap_agent", mode="before")
+    @classmethod
+    def _parse_debug_amap_agent(cls, v: object) -> bool:
+        if isinstance(v, bool):
+            return v
+        if v is None:
+            return False
+        s = str(v).strip().lower()
+        return s in ("1", "true", "yes", "on", "y")
 
 
 settings = Settings()

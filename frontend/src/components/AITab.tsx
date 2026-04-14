@@ -15,7 +15,7 @@ export function AITab() {
       id: newId(),
       role: "assistant",
       content:
-        "嗨，我是美食小参谋～你可以问哪家好吃、人均多少、某类菜的口碑等，当然我也可以回答其他任何问题～",
+        "嗨，我是美食小参谋～已接入高德：周边美食、路线（驾车/步行/骑行/电动车/公交）、天气、地点搜索等会用实时数据回答；也欢迎聊美食与点评～",
     },
   ]);
   const [input, setInput] = useState("");
@@ -62,7 +62,7 @@ export function AITab() {
           {
             id: newId(),
             role: "assistant",
-            content: `暂时无法调用模型：${msg}\n请确认本机 8020 已启动，且点评服务已配置 AI_API_KEY（若 vLLM 开启了 --api-key）。`,
+            content: `暂时无法使用参谋：${msg}\n请确认已登录，服务端已配置 AMAP_KEY 与本机模型服务（如 8020），必要时配置 AI_API_KEY。`,
           },
         ];
       });
