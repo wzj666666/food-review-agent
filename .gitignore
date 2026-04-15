@@ -2,7 +2,6 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
-data/*.db
 uploads/
 frontend/node_modules/
 frontend/dist/

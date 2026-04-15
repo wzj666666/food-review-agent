@@ -33,7 +33,7 @@ def _body_to_lc_messages(body: AIChatRequest) -> list[AIMessage | HumanMessage]:
 @router.post("/chat")
 async def chat(
     body: AIChatRequest,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     """
     参谋页：高德地图 Agent，SSE 流式。
@@ -44,7 +44,11 @@ async def chat(
         raise HTTPException(status_code=400, detail="至少需要一条用户消息")
 
     async def gen() -> AsyncIterator[bytes]:
-        async for chunk in iter_amap_advisor_sse(lc_messages):
+        async for chunk in iter_amap_advisor_sse(
+            lc_messages,
+            auth_user_id=user.id,
+            auth_username=user.username,
+        ):
             yield chunk
 
     return StreamingResponse(

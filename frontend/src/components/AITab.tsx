@@ -22,15 +22,15 @@ function newId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+const DEFAULT_ASSISTANT_WELCOME =
+  "嗨，我是美食小参谋～如果你想了解周边美食、规划路线、查询天气、地点搜索等，我会用实时数据回答，我也可以回答和点评相关的问题～";
+
+function initialMessages(): Msg[] {
+  return [{ id: newId(), role: "assistant", content: DEFAULT_ASSISTANT_WELCOME }];
+}
+
 export function AITab() {
-  const [messages, setMessages] = useState<Msg[]>([
-    {
-      id: newId(),
-      role: "assistant",
-      content:
-        "嗨，我是美食小参谋～如果你想了解周边美食、规划路线、查询天气、地点搜索等，我会用实时数据回答，我也可以回答和点评相关的问题～",
-    },
-  ]);
+  const [messages, setMessages] = useState<Msg[]>(() => initialMessages());
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +75,7 @@ export function AITab() {
           {
             id: newId(),
             role: "assistant",
-            content: `暂时无法使用参谋：${msg}\n请确认已登录，服务端已配置 AMAP_KEY 与本机模型服务（如 8020），必要时配置 AI_API_KEY。`,
+            content: `暂时无法使用参谋：${msg}\n`,
           },
         ];
       });
@@ -84,11 +84,39 @@ export function AITab() {
     }
   };
 
+  const startNewChat = () => {
+    setMessages(initialMessages());
+    setInput("");
+    setError(null);
+    setLoading(false);
+  };
+
   return (
     <div style={{ padding: "16px 16px 8px", display: "flex", flexDirection: "column", height: "calc(100dvh - 88px)" }}>
-      <header>
-        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 0.2 }}>美食小参谋</div>
-        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>你的AI参谋</div>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 0.2 }}>美食小参谋</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>你的AI参谋</div>
+        </div>
+        <button
+          type="button"
+          className="btn-ghost"
+          aria-label="新对话"
+          onClick={() => startNewChat()}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            flexShrink: 0,
+            padding: "8px 12px",
+            borderRadius: 14,
+          }}
+        >
+          <span style={{ fontSize: 22, fontWeight: 800, lineHeight: 1 }} aria-hidden>
+            +
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>新对话</span>
+        </button>
       </header>
 
       {error && (

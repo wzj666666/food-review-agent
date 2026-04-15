@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import pprint
 from collections.abc import AsyncIterator
@@ -17,11 +18,17 @@ from typing import Any
 
 import httpx
 from langchain.agents import create_agent
+from sqlalchemy.orm import joinedload
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
 from app.config import settings
+from app.database import SessionLocal
+from app.models import Review
+
+# 参谋 SSE 执行 DB 工具时注入当前登录用户 id，避免模型传入他人 user_id 越权查询
+advisor_auth_user_id: contextvars.ContextVar[int | None] = contextvars.ContextVar("advisor_auth_user_id", default=None)
 
 AMAP_V3 = "https://restapi.amap.com/v3"
 AMAP_V5 = "https://restapi.amap.com/v5"
@@ -305,6 +312,77 @@ def amap_district(
     return _truncate_json(data)
 
 
+def _review_row_overall(r: Review) -> float:
+    return (r.taste_score + r.service_score + r.environment_score + r.value_score) / 4.0
+
+
+@tool
+def list_user_reviewed_restaurants(user_id: int, query_scope: str = "mine") -> str:
+    """查询应用内点评记录（餐馆名、地区、推荐度、综合分、人均、正文摘要、`author_username` 等）。
+
+    - **mine**（默认）：只查当前登录用户自己的点评；`user_id` 须与系统消息中的当前用户 id 一致。
+    - **all**：全站所有用户点评（`user_id` 仅鉴权）。用于：无地点的推荐/点评参考、有地点时与高德结果合并、或用户明确问全站/所有人发了什么。
+    """
+    auth = advisor_auth_user_id.get()
+    if auth is None:
+        return json.dumps({"ok": False, "info": "未绑定登录用户，无法查询点评记录"}, ensure_ascii=False)
+    uid = int(auth)
+    scope = (query_scope or "mine").strip().lower()
+    if scope not in ("mine", "all"):
+        return json.dumps(
+            {"ok": False, "info": "query_scope 只能是 mine（本人）或 all（全站）"},
+            ensure_ascii=False,
+        )
+    if int(user_id) != uid:
+        return json.dumps(
+            {
+                "ok": False,
+                "info": f"user_id 不一致：传入 {user_id}，当前登录用户为 {uid}。请使用系统提示中的 user_id。",
+            },
+            ensure_ascii=False,
+        )
+
+    db = SessionLocal()
+    try:
+        q = db.query(Review).options(joinedload(Review.author))
+        if scope == "mine":
+            q = q.filter(Review.user_id == uid)
+        limit = 80 if scope == "mine" else 200
+        rows = q.order_by(Review.created_at.desc()).limit(limit).all()
+        items: list[dict[str, Any]] = []
+        for r in rows:
+            tier = getattr(r, "recommend_tier", None) or "人上人"
+            author_username = ""
+            if r.author is not None:
+                author_username = getattr(r.author, "username", "") or ""
+            row_out: dict[str, Any] = {
+                "review_id": r.id,
+                "user_id": r.user_id,
+                "author_username": author_username,
+                "restaurant_name": r.restaurant_name,
+                "city": r.city,
+                "district": r.district or "",
+                "dining_type": r.dining_type,
+                "recommend_tier": tier,
+                "overall_score": round(_review_row_overall(r), 2),
+                "avg_price": r.avg_price,
+                "content_preview": (r.content or "")[:200],
+                "created_at": r.created_at.isoformat() if r.created_at else "",
+            }
+            items.append(row_out)
+        payload: dict[str, Any] = {
+            "ok": True,
+            "query_scope": scope,
+            "count": len(items),
+            "reviews": items,
+        }
+        if scope == "mine":
+            payload["user_id"] = uid
+        return _truncate_json(payload)
+    finally:
+        db.close()
+
+
 AMAP_TOOLS = [
     amap_geocode_geo,
     amap_geocode_regeo,
@@ -321,17 +399,27 @@ AMAP_TOOLS = [
     amap_district,
 ]
 
+ADVISOR_TOOLS = [*AMAP_TOOLS, list_user_reviewed_restaurants]
+
 SYSTEM_PROMPT = """你是美食AI参谋：闲聊、美食与点评常识、一般知识或解题思路等，可直接用自然语言回答，不必调用工具。
 
-下方高德工具按需使用：仅当用户需要实时、可核验的地理与本地生活数据时再调用，例如附近 POI、路线、天气、地点联想等。凡涉及具体店名地址、坐标、距离、公交方案、实时天气等，未调用工具前不得编造；若用户未要求这类数据，不要为显得专业而强行搜地图。
+## 推荐餐馆、点评与点评库（优先按下面执行）
+工具名：`list_user_reviewed_restaurants`。参数 `user_id` **始终只填**系统消息里给出的当前登录用户 id（鉴权用，不得改他人 id）。
 
-1. 处理「某地名附近美食/餐厅」等需要真实检索时，建议顺序：
-    1) 用地理编码 `amap_geocode_geo` 把地名与上级城市转为经纬度；
-    2) 用周边搜索 `amap_place_around`，location 填坐标，keywords 用「美食」等，radius 可用 2000～5000 米；
-    3) 若地理编码不理想，可先用 `amap_input_tips` 联想，再编码或 `amap_place_text` 关键字搜索。
-    4) 回答用户时用中文，用户不指定数量时，默认给5个结果，简洁列出店名、类型、距离（若有）、评分、地址。若工具返回 status 不为 1（路径 2.0 与多数接口为字符串 \"1\" 表示成功），说明原因并给出可重试建议。
+1) **用户要推荐、想参考点评，但没有给出具体地点**（例如「推荐几家馆子」「最近大家吃了啥值得去」）：**只调用本工具，且 `query_scope` 必须为 `"all"`**，依据全站用户真实点评作答。**不要**为此去调高德周边搜/关键字搜（没有锚点地点就不要硬搜地图）。
+2) **用户要推荐或点评，且给出了可检索的具体地点**（例如「三里屯附近吃啥」「望京有什么火锅」）：**先**用本工具 `query_scope="all"` 拉全站点评；**再**用下方「高德」流程查该地点附近的餐馆/POI；回答时把**点评库里的真实体验**与**高德返回的周边候选（店名、距离等）**合在一起说明，互相补充。
+3) **用户只问本人记录**（「我写过哪些」「我去过哪些店」）：`query_scope="mine"`（可省略，默认即 mine），仍只填上述 `user_id`。
 
-2. 路径规划请用：`amap_route_driving` / `amap_route_walking` / `amap_route_bicycling` / `amap_route_electrobike` / `amap_route_transit`；起终点均为「经度,纬度」。公交须传 citycode：`amap_route_transit` 的 city1、city2（同城可只填 city1）。
+## 高德地图工具（有明确地理/路线/天气需求时用）
+需要可核验的店址、坐标、距离、路线、天气、行政区等时**必须**调用高德工具，未调用不得编造；用户**没有**地点锚点且属于上节 1) 时，不要为了显得专业而强行搜地图。
+
+「某地附近美食/餐厅」等检索建议顺序：
+    1) `amap_geocode_geo` 把地名与上级城市转为经纬度；
+    2) `amap_place_around`，location 填「经度,纬度」，keywords 可用「美食」等，radius 可用 2000～5000 米；
+    3) 不理想时可用 `amap_input_tips` 联想，再编码或 `amap_place_text`。
+    4) 用中文回答；用户未指定条数时默认约 5 条；列店名、类型、距离（若有）、评分、地址。
+
+路径规划：`amap_route_driving` / `amap_route_walking` / `amap_route_bicycling` / `amap_route_electrobike` / `amap_route_transit`；起终点均为「经度,纬度」。公交须传 citycode：`amap_route_transit` 的 city1、city2（同城可只填 city1）。
 """
 
 
@@ -348,7 +436,7 @@ def _make_llm() -> ChatOpenAI:
 
 
 # 修改 _make_llm / 工具集 / SYSTEM_PROMPT 后递增，避免进程内仍缓存旧图
-_AGENT_GRAPH_VERSION = 3
+_AGENT_GRAPH_VERSION = 6
 _agent_graph: Any | None = None
 _agent_graph_built_at: int = 0
 
@@ -359,7 +447,7 @@ def _get_agent_graph():
     if _agent_graph is None or _agent_graph_built_at != _AGENT_GRAPH_VERSION:
         _agent_graph = create_agent(
             _make_llm(),
-            AMAP_TOOLS,
+            ADVISOR_TOOLS,
             system_prompt=SYSTEM_PROMPT,
         )
         _agent_graph_built_at = _AGENT_GRAPH_VERSION
@@ -400,7 +488,7 @@ async def _run_tool_call(tool_call: dict[str, Any]) -> ToolMessage:
     else:
         args = {}
 
-    tool_obj = next((t for t in AMAP_TOOLS if getattr(t, "name", "") == name), None)
+    tool_obj = next((t for t in ADVISOR_TOOLS if getattr(t, "name", "") == name), None)
     if tool_obj is None:
         content = json.dumps({"status": "0", "info": f"未知工具: {name}"}, ensure_ascii=False)
         return ToolMessage(content=content, name=name or "unknown_tool", tool_call_id=call_id, status="error")
@@ -414,102 +502,125 @@ async def _run_tool_call(tool_call: dict[str, Any]) -> ToolMessage:
         return ToolMessage(content=content, name=name, tool_call_id=call_id, status="error")
 
 
-async def iter_amap_advisor_sse(messages: list[BaseMessage]) -> AsyncIterator[bytes]:
+async def iter_amap_advisor_sse(
+    messages: list[BaseMessage],
+    *,
+    auth_user_id: int,
+    auth_username: str = "",
+) -> AsyncIterator[bytes]:
     """
     参谋页 SSE：仅输出最终答案的 OpenAI 兼容 delta.content。
     实现方式使用 LangChain 原生 `ChatOpenAI.bind_tools(...).astream()`：
     前几轮用流式累计 tool_call_chunks，若最终形成 tool_calls 则执行工具并继续；
     遇到没有 tool_calls 的最终回答轮时，直接把 text chunks 逐段转发给前端。
     """
-    if not _amap_key():
-        err = "服务端未配置高德 AMAP_KEY，无法使用地图参谋。请在环境变量中设置 AMAP_KEY 后重试。"
-        yield f"data: {_sse_openai_delta(err)}\n\n".encode()
-        yield b"data: [DONE]\n\n"
-        return
-
-    # 立刻推一行 SSE 注释，尽早结束「首字节前阻塞」，并减少中间层合并首包与后续包的概率
-    yield b":\n\n"
-
-    llm = _make_llm()
-    llm_with_tools = llm.bind_tools(AMAP_TOOLS)
-    dialogue: list[BaseMessage] = [SystemMessage(content=SYSTEM_PROMPT), *messages]
-    trace_messages: list[Any] = list(messages)
-    max_turns = 8
-    streamed_any_text = False
-
+    ctx_token = advisor_auth_user_id.set(int(auth_user_id))
     try:
-        for _ in range(max_turns):
-            full_chunk = None
-            saw_tool_chunks = False
-            started_streaming_this_turn = False
-            pending_text_chunks: list[str] = []
+        user_ctx = (
+            f"\n\n【会话身份】当前登录用户 user_id={int(auth_user_id)}"
+            + (f"，用户名 {auth_username}" if auth_username else "")
+            + "。调用 `list_user_reviewed_restaurants` 时参数 `user_id` 只能填上述 id。"
+        )
+        full_system = SYSTEM_PROMPT + user_ctx
 
-            async for chunk in llm_with_tools.astream(dialogue):
-                full_chunk = chunk if full_chunk is None else full_chunk + chunk
+        yield b":\n\n"
 
-                tool_call_chunks = getattr(chunk, "tool_call_chunks", None) or []
-                if tool_call_chunks:
-                    saw_tool_chunks = True
-
-                text_piece = getattr(chunk, "text", None)
-                if not isinstance(text_piece, str) or not text_piece:
-                    text_piece = _message_text(chunk)
-
-                if not text_piece:
-                    continue
-
-                # 工具调用轮通常只会先吐空串或 "\n\n"，随后出现 tool_call_chunks。
-                # 为避免把这类前导空白误发给前端，先暂存，直到确认本轮没有走工具。
-                pending_text_chunks.append(text_piece)
-                if saw_tool_chunks:
-                    continue
-
-                if not started_streaming_this_turn and text_piece.strip():
-                    for buffered in pending_text_chunks:
-                        if buffered:
-                            yield f"data: {_sse_openai_delta(buffered)}\n\n".encode()
-                    started_streaming_this_turn = True
-                    streamed_any_text = True
-                    continue
-
-                if started_streaming_this_turn:
-                    yield f"data: {_sse_openai_delta(text_piece)}\n\n".encode()
-
-            if full_chunk is None:
-                break
-
-            final_ai = AIMessage(content=_message_text(full_chunk), tool_calls=getattr(full_chunk, "tool_calls", None) or [])
-            if final_ai.tool_calls:
-                trace_messages.append(final_ai)
-                dialogue.append(final_ai)
-                for tool_call in final_ai.tool_calls:
-                    tool_msg = await _run_tool_call(tool_call)
-                    trace_messages.append(tool_msg)
-                    dialogue.append(tool_msg)
-                continue
-
-            if not started_streaming_this_turn:
-                fallback_text = _message_text(full_chunk)
-                if fallback_text:
-                    yield f"data: {_sse_openai_delta(fallback_text)}\n\n".encode()
-                    streamed_any_text = True
-            trace_messages.append(final_ai)
-            break
+        llm = _make_llm()
+        if not _amap_key():
+            llm_with_tools = llm.bind_tools([list_user_reviewed_restaurants])
+            dialogue: list[BaseMessage] = [
+                SystemMessage(
+                    content=full_system
+                    + "\n\n（当前未配置 AMAP_KEY，无法使用高德地图类工具；若用户需要地图/POI/路线等，请说明需配置 AMAP_KEY。）"
+                ),
+                *messages,
+            ]
         else:
-            err = "（参谋服务异常：工具调用轮数过多，已中止）"
+            llm_with_tools = llm.bind_tools(ADVISOR_TOOLS)
+            dialogue = [SystemMessage(content=full_system), *messages]
+
+        trace_messages: list[Any] = list(messages)
+        max_turns = 8
+        streamed_any_text = False
+
+        try:
+            for _ in range(max_turns):
+                full_chunk = None
+                saw_tool_chunks = False
+                started_streaming_this_turn = False
+                pending_text_chunks: list[str] = []
+
+                async for chunk in llm_with_tools.astream(dialogue):
+                    full_chunk = chunk if full_chunk is None else full_chunk + chunk
+
+                    tool_call_chunks = getattr(chunk, "tool_call_chunks", None) or []
+                    if tool_call_chunks:
+                        saw_tool_chunks = True
+
+                    text_piece = getattr(chunk, "text", None)
+                    if not isinstance(text_piece, str) or not text_piece:
+                        text_piece = _message_text(chunk)
+
+                    if not text_piece:
+                        continue
+
+                    # 工具调用轮通常只会先吐空串或 "\n\n"，随后出现 tool_call_chunks。
+                    # 为避免把这类前导空白误发给前端，先暂存，直到确认本轮没有走工具。
+                    pending_text_chunks.append(text_piece)
+                    if saw_tool_chunks:
+                        continue
+
+                    if not started_streaming_this_turn and text_piece.strip():
+                        for buffered in pending_text_chunks:
+                            if buffered:
+                                yield f"data: {_sse_openai_delta(buffered)}\n\n".encode()
+                        started_streaming_this_turn = True
+                        streamed_any_text = True
+                        continue
+
+                    if started_streaming_this_turn:
+                        yield f"data: {_sse_openai_delta(text_piece)}\n\n".encode()
+
+                if full_chunk is None:
+                    break
+
+                final_ai = AIMessage(
+                    content=_message_text(full_chunk),
+                    tool_calls=getattr(full_chunk, "tool_calls", None) or [],
+                )
+                if final_ai.tool_calls:
+                    trace_messages.append(final_ai)
+                    dialogue.append(final_ai)
+                    for tool_call in final_ai.tool_calls:
+                        tool_msg = await _run_tool_call(tool_call)
+                        trace_messages.append(tool_msg)
+                        dialogue.append(tool_msg)
+                    continue
+
+                if not started_streaming_this_turn:
+                    fallback_text = _message_text(full_chunk)
+                    if fallback_text:
+                        yield f"data: {_sse_openai_delta(fallback_text)}\n\n".encode()
+                        streamed_any_text = True
+                trace_messages.append(final_ai)
+                break
+            else:
+                err = "（参谋服务异常：工具调用轮数过多，已中止）"
+                yield f"data: {_sse_openai_delta(err)}\n\n".encode()
+                streamed_any_text = True
+        except Exception as e:  # noqa: BLE001
+            err = f"（参谋服务异常：{e}）"
             yield f"data: {_sse_openai_delta(err)}\n\n".encode()
             streamed_any_text = True
-    except Exception as e:  # noqa: BLE001
-        err = f"（参谋服务异常：{e}）"
-        yield f"data: {_sse_openai_delta(err)}\n\n".encode()
-        streamed_any_text = True
 
-    if settings.debug_amap_agent and trace_messages:
-        _debug_print_messages(trace_messages)
+        if settings.debug_amap_agent and trace_messages:
+            _debug_print_messages(trace_messages)
 
-    if not streamed_any_text:
-        yield f"data: {_sse_openai_delta('（未生成文本回复，请检查模型是否支持工具调用）')}\n\n".encode()
-    yield b"data: [DONE]\n\n"
+        if not streamed_any_text:
+            yield f"data: {_sse_openai_delta('（未生成文本回复，请检查模型是否支持工具调用）')}\n\n".encode()
+        yield b"data: [DONE]\n\n"
+    finally:
+        advisor_auth_user_id.reset(ctx_token)
 
 
 def _final_text(messages: list[BaseMessage]) -> str:

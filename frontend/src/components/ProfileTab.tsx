@@ -20,6 +20,8 @@ export function ProfileTab({ user, onUserUpdated, onLogout }: Props) {
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [editReview, setEditReview] = useState<Review | null>(null);
+  /** 个人点评卡片「⋯」菜单：当前展开的行 id */
+  const [reviewMenuId, setReviewMenuId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,6 +46,25 @@ export function ProfileTab({ user, onUserUpdated, onLogout }: Props) {
       .then(setRegions)
       .catch(() => setRegions([]));
   }, []);
+
+  useEffect(() => {
+    if (reviewMenuId == null) return;
+    const close = () => setReviewMenuId(null);
+    const onDocMouseDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (document.querySelector(`[data-review-menu="${reviewMenuId}"]`)?.contains(t)) return;
+      close();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("mousedown", onDocMouseDown, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocMouseDown, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [reviewMenuId]);
 
   const joined = new Date(user.created_at);
   const joinedText = Number.isNaN(joined.getTime())
@@ -139,29 +160,87 @@ export function ProfileTab({ user, onUserUpdated, onLogout }: Props) {
                   {r.district ? ` · ${r.district}` : ""} · 综合 {r.overall_score.toFixed(1)}
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+              <div data-review-menu={r.id} style={{ position: "relative", flexShrink: 0 }}>
                 <button
                   type="button"
                   className="btn-ghost"
-                  style={{ width: "auto", padding: "6px 12px", fontSize: 12 }}
-                  onClick={() => setEditReview(r)}
-                >
-                  修改
-                </button>
-                <button
-                  type="button"
-                  className="btn-ghost"
+                  aria-label="更多操作"
+                  aria-expanded={reviewMenuId === r.id}
+                  aria-haspopup="menu"
                   style={{
-                    width: "auto",
-                    padding: "6px 12px",
-                    fontSize: 12,
-                    borderColor: "rgba(180, 35, 24, 0.35)",
-                    color: "var(--danger)",
+                    width: 40,
+                    height: 36,
+                    padding: 0,
+                    fontSize: 20,
+                    lineHeight: 1,
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: 12,
                   }}
-                  onClick={() => void handleDelete(r)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setReviewMenuId((id) => (id === r.id ? null : r.id));
+                  }}
                 >
-                  删除
+                  ⋯
                 </button>
+                {reviewMenuId === r.id && (
+                  <div
+                    role="menu"
+                    style={{
+                      position: "absolute",
+                      right: 0,
+                      top: "100%",
+                      marginTop: 4,
+                      minWidth: 112,
+                      padding: 4,
+                      borderRadius: 12,
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      boxShadow: "var(--shadow)",
+                      zIndex: 30,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="btn-ghost"
+                      style={{
+                        width: "100%",
+                        justifyContent: "flex-start",
+                        padding: "10px 12px",
+                        fontSize: 14,
+                        borderRadius: 10,
+                      }}
+                      onClick={() => {
+                        setReviewMenuId(null);
+                        setEditReview(r);
+                      }}
+                    >
+                      修改
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="btn-ghost"
+                      style={{
+                        width: "100%",
+                        justifyContent: "flex-start",
+                        padding: "10px 12px",
+                        fontSize: 14,
+                        borderRadius: 10,
+                        borderColor: "transparent",
+                        color: "var(--danger)",
+                      }}
+                      onClick={() => {
+                        setReviewMenuId(null);
+                        void handleDelete(r);
+                      }}
+                    >
+                      删除
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             {r.dishes.length > 0 && (

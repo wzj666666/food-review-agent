@@ -17,6 +17,13 @@ MultiPartParser.max_file_size = 12 * 1024 * 1024
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
+# 避免手机 WebView / 浏览器长期缓存入口页，仍指向旧 hash 的 JS/CSS
+_HTML_NO_CACHE = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
 app = FastAPI(title="个人点评", version="1.0.0")
 
 app.add_middleware(
@@ -62,7 +69,7 @@ if STATIC_DIR.exists():
 
     @app.get("/")
     def index_html():
-        return FileResponse(STATIC_DIR / "index.html")
+        return FileResponse(STATIC_DIR / "index.html", headers=_HTML_NO_CACHE)
 
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
 
@@ -71,7 +78,7 @@ if STATIC_DIR.exists():
         file = STATIC_DIR / full_path
         if file.is_file():
             return FileResponse(file)
-        return FileResponse(STATIC_DIR / "index.html")
+        return FileResponse(STATIC_DIR / "index.html", headers=_HTML_NO_CACHE)
 
 else:
 
