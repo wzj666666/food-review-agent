@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import type { AttachmentItem, RegionProvince, Review, ReviewPayload, ReviewPoiSuggestion } from "../api";
+import type {
+  AttachmentItem,
+  RegionProvince,
+  Review,
+  ReviewInputTipItem,
+  ReviewPayload,
+} from "../api";
 import {
   createReview,
   deleteUploadedImage,
-  fetchReviewLocationSuggestions,
+  fetchReviewInputTips,
   updateReview,
   uploadReviewImage,
   uploadReviewVideo,
@@ -12,12 +18,65 @@ import {
 import { RECOMMEND_TIERS, type RecommendTier } from "../recommendTier";
 import { ReviewMediaGallery } from "./ReviewMediaGallery";
 
-/** 新建时的默认地点（与 app/data/regions.json 一致） */
-export const DEFAULT_REVIEW_LOCATION = {
-  province: "北京市",
-  city: "北京市",
-  district: "朝阳区",
-} as const;
+
+/** 与高德输入提示列表中的匹配高亮相近 */
+const TIP_MATCH_COLOR = "#156ed3";
+
+function highlightQuery(text: string, q: string): React.ReactNode {
+  const qq = q.trim();
+  if (!qq) return text;
+  const nodes: React.ReactNode[] = [];
+  let rest = text;
+  let key = 0;
+  while (rest.length > 0) {
+    const i = rest.indexOf(qq);
+    if (i < 0) {
+      nodes.push(<span key={key++}>{rest}</span>);
+      break;
+    }
+    if (i > 0) nodes.push(<span key={key++}>{rest.slice(0, i)}</span>);
+    nodes.push(
+      <span key={key++} style={{ color: TIP_MATCH_COLOR, fontWeight: 700 }}>
+        {rest.slice(i, i + qq.length)}
+      </span>,
+    );
+    rest = rest.slice(i + qq.length);
+  }
+  return <>{nodes}</>;
+}
+
+function InputTipIcon({ kind }: { kind: ReviewInputTipItem["kind"] }) {
+  const box = { width: 26, height: 40, flexShrink: 0, display: "grid", placeItems: "center" as const };
+  if (kind === "keyword") {
+    return (
+      <span style={{ ...box, color: "var(--muted)" }} aria-hidden>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2">
+          <circle cx="10" cy="10" r="6.5" />
+          <path d="M15 15l6 6" strokeLinecap="round" />
+        </svg>
+      </span>
+    );
+  }
+  if (kind === "bus") {
+    return (
+      <span style={{ ...box, color: "var(--muted)" }} aria-hidden>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="4" y="7" width="16" height="9" rx="1.2" />
+          <path d="M6 11h12M7 16h2M15 16h2" strokeLinecap="round" />
+          <circle cx="8" cy="18" r="1.4" fill="currentColor" />
+          <circle cx="16" cy="18" r="1.4" fill="currentColor" />
+        </svg>
+      </span>
+    );
+  }
+  return (
+    <span style={{ ...box, color: "var(--muted)" }} aria-hidden>
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor">
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.25a2.25 2.25 0 1 1 0-4.5 2.25 2.25 0 0 1 0 4.5z" />
+      </svg>
+    </span>
+  );
+}
 
 type Props = {
   regions: RegionProvince[];
@@ -48,14 +107,16 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
-  const [locBusy, setLocBusy] = useState(false);
-  const [locModal, setLocModal] = useState<{
-    suggestions: ReviewPoiSuggestion[];
-    /** 当前展示第几条（0..2，对应高德返回顺序的前 3 条） */
-    index: number;
-    basePayload: ReviewPayload;
-  } | null>(null);
+  /** 从输入提示点选后锁定的经纬度（null 表示未选，提交时直接留空） */
+  const [pickedLat, setPickedLat] = useState<number | null>(null);
+  const [pickedLng, setPickedLng] = useState<number | null>(null);
+  /** 点选 tip 后展示给用户的副标题文案 */
+  const [pickedAddress, setPickedAddress] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [inputTips, setInputTips] = useState<ReviewInputTipItem[]>([]);
+  const [tipsLoading, setTipsLoading] = useState(false);
+  const [nameFieldFocused, setNameFieldFocused] = useState(false);
+  const nameBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (initial) {
@@ -80,9 +141,9 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
     } else {
       setRestaurantName("");
       setDiningType("dine_in");
-      setProvince(DEFAULT_REVIEW_LOCATION.province);
-      setCity(DEFAULT_REVIEW_LOCATION.city);
-      setDistrict(DEFAULT_REVIEW_LOCATION.district);
+      setProvince("");
+      setCity("");
+      setDistrict("");
       setTaste(4);
       setService(4);
       setEnv(4);
@@ -94,7 +155,49 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       setAttachments([]);
     }
     setError(null);
+    setInputTips([]);
+    setPickedLat(null);
+    setPickedLng(null);
+    setPickedAddress("");
   }, [initial]);
+
+  useEffect(() => {
+    const q = restaurantName.trim();
+    if (q.length < 1) {
+      setInputTips([]);
+      setTipsLoading(false);
+      return;
+    }
+    const ac = new AbortController();
+    const timer = window.setTimeout(() => {
+      setTipsLoading(true);
+      void (async () => {
+        try {
+          const { tips } = await fetchReviewInputTips({
+            keywords: q,
+            city: city.trim(),
+            signal: ac.signal,
+          });
+          if (!ac.signal.aborted) setInputTips(tips.filter((t) => t.kind !== "bus"));
+        } catch {
+          if (!ac.signal.aborted) setInputTips([]);
+        } finally {
+          if (!ac.signal.aborted) setTipsLoading(false);
+        }
+      })();
+    }, 320);
+    return () => {
+      clearTimeout(timer);
+      ac.abort();
+    };
+  }, [restaurantName, city]);
+
+  useEffect(
+    () => () => {
+      if (nameBlurTimer.current) clearTimeout(nameBlurTimer.current);
+    },
+    [],
+  );
 
   const provinces = regions.map((p) => p.name);
   const cities =
@@ -186,7 +289,7 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
 
   const validateForm = (): string | null => {
     if (!restaurantName.trim()) return "请填写餐馆名称";
-    if (!city.trim()) return "请选择城市";
+    if (!city.trim() && pickedLat === null) return "请点击提示选择位置，或在下方手动选择所在城市";
     if (avgPrice === "" || Number.isNaN(Number(avgPrice)) || Number(avgPrice) < 0) return "请填写有效的人均价格";
     if (!content.trim()) return "请填写评价";
     return null;
@@ -210,51 +313,25 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       images: attachments.filter((a) => a.type === "image").map((a) => a.path),
       videos: attachments.filter((a) => a.type === "video").map((a) => a.path),
       content: content.trim(),
+      ...(pickedLat !== null && pickedLng !== null ? { latitude: pickedLat, longitude: pickedLng } : {}),
     };
   };
 
-  const requestLocationStep = async () => {
+  const handleSubmit = async () => {
     setError(null);
     const v = validateForm();
     if (v) {
       setError(v);
       return;
     }
-    setLocBusy(true);
-    try {
-      const { suggestions } = await fetchReviewLocationSuggestions({
-        restaurant_name: restaurantName.trim(),
-        city: city.trim(),
-        district: district.trim(),
-      });
-      if (!suggestions.length) {
-        setError("高德未返回匹配位置，请核对店名与城市后重试");
-        return;
-      }
-      setLocModal({ suggestions, index: 0, basePayload: buildPayload() });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "位置检索失败");
-    } finally {
-      setLocBusy(false);
-    }
-  };
-
-  const confirmLocationAndSave = async (s: ReviewPoiSuggestion) => {
-    if (!locModal) return;
-    const payload: ReviewPayload = {
-      ...locModal.basePayload,
-      latitude: s.latitude,
-      longitude: s.longitude,
-    };
     setSaving(true);
-    setError(null);
     try {
+      const payload = buildPayload();
       if (isEdit && initial) {
         await updateReview(initial.id, payload);
       } else {
         await createReview(payload);
       }
-      setLocModal(null);
       await onSuccess();
     } catch (e) {
       setError(e instanceof Error ? e.message : "保存失败");
@@ -262,111 +339,6 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       setSaving(false);
     }
   };
-
-  let locationConfirmOverlay: React.ReactNode = null;
-  if (locModal) {
-    const cur = locModal.suggestions[locModal.index];
-    const total = locModal.suggestions.length;
-    const step = locModal.index + 1;
-    if (cur) {
-      const handleLocationNo = () => {
-        if (saving) return;
-        if (locModal.index < locModal.suggestions.length - 1) {
-          setLocModal({ ...locModal, index: locModal.index + 1 });
-        } else {
-          const n = locModal.suggestions.length;
-          setLocModal(null);
-          setError(`在返回的 ${n} 条候选中均未确认，未保存。可修改店名或地区后重试。`);
-        }
-      };
-      locationConfirmOverlay = (
-        <div
-          role="dialog"
-          aria-modal
-          aria-label="确认店铺位置"
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.55)",
-              zIndex: 200,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 16,
-            }}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !saving) setLocModal(null);
-          }}
-        >
-          <div
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: 14,
-              padding: 20,
-              width: "100%",
-              maxWidth: 420,
-              maxHeight: "88vh",
-              overflow: "auto",
-              boxShadow: "0 12px 48px rgba(0,0,0,0.45)",
-            }}
-          >
-            <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 4 }}>确认店铺位置</div>
-            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
-              高德检索结果 · 第 {step} / {total} 个候选
-            </div>
-            <div
-              style={{
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                padding: 12,
-                marginBottom: 14,
-              }}
-            >
-              <div style={{ fontWeight: 700, fontSize: 16 }}>{cur.name}</div>
-              {cur.address && (
-                <div style={{ fontSize: 14, marginTop: 8, lineHeight: 1.6, color: "var(--fg)" }}>
-                  {cur.address}
-                </div>
-              )}
-            </div>
-            <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12 }}>
-              这是您要记录的店铺吗？点「是」提交，点「否」查看下一条。
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                type="button"
-                className="btn-primary"
-                style={{ flex: 1, width: "auto" }}
-                disabled={saving}
-                onClick={() => void confirmLocationAndSave(cur)}
-              >
-                {saving ? "保存中…" : "是"}
-              </button>
-              <button
-                type="button"
-                className="btn-ghost"
-                style={{ flex: 1, width: "auto" }}
-                disabled={saving}
-                onClick={handleLocationNo}
-              >
-                否
-              </button>
-            </div>
-            <button
-              type="button"
-              className="btn-ghost"
-              style={{ width: "100%", marginTop: 10 }}
-              disabled={saving}
-              onClick={() => setLocModal(null)}
-            >
-              取消
-            </button>
-          </div>
-        </div>
-      );
-    }
-  }
 
   return (
     <div
@@ -393,8 +365,179 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
           <div style={{ color: "var(--danger)", fontSize: 13, marginBottom: 10 }}>{error}</div>
         )}
 
-        <label className="label">餐馆名称</label>
-        <input className="input" value={restaurantName} onChange={(e) => setRestaurantName(e.target.value)} />
+        <label className="label" htmlFor="review-restaurant-name">
+          餐馆名称
+        </label>
+        <div style={{ position: "relative", zIndex: 2 }}>
+          <input
+            id="review-restaurant-name"
+            className="input"
+            value={restaurantName}
+            autoComplete="off"
+            aria-expanded={nameFieldFocused && (inputTips.length > 0 || tipsLoading)}
+            aria-controls="review-restaurant-tips"
+            onChange={(e) => {
+              setRestaurantName(e.target.value);
+              // 手动改名时清除已选位置
+              setPickedLat(null);
+              setPickedLng(null);
+              setPickedAddress("");
+            }}
+            onFocus={() => {
+              if (nameBlurTimer.current) {
+                clearTimeout(nameBlurTimer.current);
+                nameBlurTimer.current = null;
+              }
+              setNameFieldFocused(true);
+            }}
+            onBlur={() => {
+              nameBlurTimer.current = setTimeout(() => setNameFieldFocused(false), 160);
+            }}
+          />
+          {nameFieldFocused && restaurantName.trim().length >= 1 && (inputTips.length > 0 || tipsLoading) && (
+            <div
+              id="review-restaurant-tips"
+              role="listbox"
+              aria-label="店名联想"
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: "calc(100% + 4px)",
+                maxHeight: 320,
+                overflowY: "auto",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+                boxShadow: "var(--shadow)",
+              }}
+            >
+              {tipsLoading && inputTips.length === 0 && (
+                <div style={{ padding: 12, fontSize: 13, color: "var(--muted)" }}>加载联想…</div>
+              )}
+              {inputTips.map((tip, idx) => (
+                <button
+                  key={`${tip.name}-${idx}`}
+                  type="button"
+                  role="option"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setRestaurantName(tip.name);
+                    setInputTips([]);
+                    setNameFieldFocused(false);
+                    if (tip.latitude != null && tip.longitude != null) {
+                      setPickedLat(tip.latitude);
+                      setPickedLng(tip.longitude);
+                      setPickedAddress(tip.subtitle || tip.name);
+                      // 直接写入原始字符串，不再尝试匹配下拉列表
+                      setProvince(tip.province ?? "");
+                      setCity(tip.city ?? "");
+                      setDistrict(tip.district ?? "");
+                    } else {
+                      setPickedLat(null);
+                      setPickedLng(null);
+                      setPickedAddress("");
+                    }
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "stretch",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 10px 10px 4px",
+                    gap: 4,
+                    border: "none",
+                    borderBottom: "1px solid var(--border)",
+                    background: "transparent",
+                    cursor: "pointer",
+                    borderRadius: 0,
+                  }}
+                >
+                  <InputTipIcon kind={tip.kind} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.35, color: "var(--text)" }}>
+                      {highlightQuery(tip.name, restaurantName)}
+                    </div>
+                    {tip.subtitle ? (
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "var(--muted)",
+                          marginTop: 4,
+                          lineHeight: 1.45,
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        {tip.subtitle}
+                      </div>
+                    ) : null}
+                  </div>
+                  <span
+                    style={{
+                      alignSelf: "center",
+                      color: "var(--border)",
+                      fontSize: 16,
+                      paddingLeft: 4,
+                      flexShrink: 0,
+                    }}
+                    aria-hidden
+                  >
+                    ↗
+                  </span>
+                </button>
+              ))}
+              {tipsLoading && inputTips.length > 0 && (
+                <div style={{ padding: 8, fontSize: 12, color: "var(--muted)", textAlign: "center" }}>更新中…</div>
+              )}
+            </div>
+          )}
+        </div>
+        {pickedLat !== null && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              marginTop: 6,
+              padding: "6px 10px",
+              background: "var(--accent-soft)",
+              borderRadius: 8,
+              fontSize: 12,
+              color: "var(--text)",
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="var(--accent)" style={{ flexShrink: 0 }}>
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.25a2.25 2.25 0 1 1 0-4.5 2.25 2.25 0 0 1 0 4.5z" />
+            </svg>
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {pickedAddress}
+            </span>
+            <button
+              type="button"
+              aria-label="清除已选位置"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setPickedLat(null);
+                setPickedLng(null);
+                setPickedAddress("");
+                setProvince("");
+                setCity("");
+                setDistrict("");
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "0 2px",
+                color: "var(--muted)",
+                fontSize: 15,
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         <label className="label" style={{ marginTop: 12 }}>
           就餐方式
@@ -421,48 +564,66 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
         <label className="label" style={{ marginTop: 12 }}>
           在哪儿吃（省 / 市 / 区）
         </label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-          <select
-            className="input"
-            value={province}
-            onChange={(e) => {
-              setProvince(e.target.value);
-              setCity("");
-              setDistrict("");
+        {pickedLat !== null ? (
+          <div
+            style={{
+              padding: "10px 12px",
+              background: "var(--bg-2)",
+              borderRadius: 10,
+              fontSize: 14,
+              color: "var(--text)",
+              lineHeight: 1.5,
             }}
           >
-            <option value="">省</option>
-            {provinces.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input"
-            value={city}
-            onChange={(e) => {
-              setCity(e.target.value);
-              setDistrict("");
-            }}
-            disabled={!province}
-          >
-            <option value="">市</option>
-            {cities.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <select className="input" value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!city}>
-            <option value="">区/县</option>
-            {districts.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </div>
+            {[province, city, district].filter(Boolean).join(" / ") || "—"}
+            <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 6 }}>
+              （已由位置提示自动填入，点击上方 × 可清除后手动选择）
+            </span>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <select
+              className="input"
+              value={province}
+              onChange={(e) => {
+                setProvince(e.target.value);
+                setCity("");
+                setDistrict("");
+              }}
+            >
+              <option value="">省</option>
+              {provinces.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <select
+              className="input"
+              value={city}
+              onChange={(e) => {
+                setCity(e.target.value);
+                setDistrict("");
+              }}
+              disabled={!province}
+            >
+              <option value="">市</option>
+              {cities.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <select className="input" value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!city}>
+              <option value="">区/县</option>
+              {districts.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <ScoreSlider label="口味" value={taste} onChange={setTaste} />
         {diningType === "dine_in" && (
@@ -601,13 +762,11 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
           type="button"
           className="btn-primary"
           style={{ marginTop: 8 }}
-          disabled={saving || locBusy}
-          onClick={() => void requestLocationStep()}
+          disabled={saving}
+          onClick={() => void handleSubmit()}
         >
-          {saving ? "保存中…" : locBusy ? "检索位置中…" : isEdit ? "保存修改" : "发布"}
+          {saving ? "保存中…" : isEdit ? "保存修改" : "发布"}
         </button>
-
-        {locationConfirmOverlay}
       </div>
     </div>
   );

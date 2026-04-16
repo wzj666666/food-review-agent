@@ -47,7 +47,7 @@ class ReviewCreate(BaseModel):
     restaurant_name: str = Field(min_length=1, max_length=128)
     dining_type: Literal["dine_in", "takeaway"]
     province: str = ""
-    city: str = Field(min_length=1, max_length=32)
+    city: str = Field(default="", max_length=32)
     district: str = Field(default="", max_length=32)
     taste_score: float = Field(ge=0, le=5)
     # 外卖可不传；后端用 (口味+性价比)/2 写入库，便于综合分 = 两项均值
@@ -57,8 +57,8 @@ class ReviewCreate(BaseModel):
     avg_price: int = Field(ge=0, le=999999)
     dishes: list[str] = Field(default_factory=list)
     recommend_tier: RecommendTier = Field(default="人上人", description="推荐度：夯 / 顶级 / 人上人 / NPC / 拉完了")
-    latitude: float | None = Field(default=None, ge=-90.0, le=90.0, description="纬度（高德，选点确认后必填）")
-    longitude: float | None = Field(default=None, ge=-180.0, le=180.0, description="经度（高德，选点确认后必填）")
+    latitude: float | None = Field(default=None, ge=-90.0, le=90.0, description="纬度（从输入提示选中 POI 后写入，可为空）")
+    longitude: float | None = Field(default=None, ge=-180.0, le=180.0, description="经度（从输入提示选中 POI 后写入，可为空）")
     content: str = Field(min_length=1, max_length=500)
     images: list[str] = Field(default_factory=list, description="配图 URL（与 videos 二选一来源；有 attachments 时以 attachments 为准）")
     videos: list[str] = Field(default_factory=list, description="视频 URL")
@@ -162,6 +162,23 @@ class ReviewPoiSuggestion(BaseModel):
 
 class ReviewLocationSuggestOut(BaseModel):
     suggestions: list[ReviewPoiSuggestion]
+
+
+class ReviewInputTipItem(BaseModel):
+    """高德输入提示单行（用于店名联想，不等同于已落库的 POI）。"""
+
+    name: str
+    subtitle: str = ""
+    kind: Literal["poi", "bus", "keyword"] = "poi"
+    longitude: float | None = None
+    latitude: float | None = None
+    province: str = ""
+    city: str = ""
+    district: str = ""
+
+
+class ReviewInputTipsOut(BaseModel):
+    tips: list[ReviewInputTipItem]
 
 
 class UploadedImagePath(BaseModel):

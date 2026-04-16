@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any, Literal
 
 import httpx
@@ -14,6 +15,8 @@ from app.recommend_tier import normalize_recommend_tier
 from app.schemas import (
     AttachmentItem,
     ReviewCreate,
+    ReviewInputTipItem,
+    ReviewInputTipsOut,
     ReviewLocationSuggestIn,
     ReviewLocationSuggestOut,
     ReviewOut,
@@ -182,6 +185,103 @@ def _amap_place_text(keywords: str, city: str) -> dict[str, Any]:
         return r.json()
 
 
+def _amap_input_tips(keywords: str, city: str) -> dict[str, Any]:
+    k = (settings.amap_key or "").strip()
+    if not k:
+        raise HTTPException(status_code=503, detail="服务端未配置 AMAP_KEY，无法检索位置")
+    params: dict[str, Any] = {
+        "key": k,
+        "keywords": keywords,
+        "city": city or None,
+        "citylimit": "true" if city.strip() else "false",
+        "datatype": "poi",
+        "output": "json",
+    }
+    params = {a: b for a, b in params.items() if b is not None and b != ""}
+    url = f"{AMAP_V3}/assistant/inputtips"
+    with httpx.Client(timeout=15.0) as client:
+        r = client.get(url, params=params)
+        r.raise_for_status()
+        return r.json()
+
+
+def _tip_str(v: Any) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, list):
+        parts = [str(x).strip() for x in v if x is not None and str(x).strip()]
+        return parts[0] if parts else ""
+    return str(v).strip()
+
+
+def _strip_tip_html(s: str) -> str:
+    return re.sub(r"<[^>]*>", "", s or "")
+
+
+def _input_tip_subtitle(t: dict[str, Any]) -> str:
+    type_full = _tip_str(t.get("type"))
+    cat = type_full.split(";")[0].strip() if type_full else ""
+    prov = _tip_str(t.get("province"))
+    ct = _tip_str(t.get("city"))
+    dist = _tip_str(t.get("district"))
+    addr = _tip_str(t.get("address"))
+    geo = "-".join(p for p in (prov, ct, dist, addr) if p)
+    if cat and geo:
+        return f"{cat} · {geo}"
+    if geo:
+        return geo
+    return cat or dist or addr
+
+
+def _input_tip_kind(t: dict[str, Any], has_loc: bool) -> Literal["poi", "bus", "keyword"]:
+    if not has_loc:
+        return "keyword"
+    tc = str(t.get("typecode") or "")
+    name = str(t.get("name") or "")
+    dtype = str(t.get("datatype") or "").lower()
+    if dtype == "bus" or "地铁" in name or "公交站" in name or tc.startswith("1505") or tc.startswith("1507"):
+        return "bus"
+    return "poi"
+
+
+def _parse_input_tips(data: dict[str, Any], limit: int = 15) -> list[ReviewInputTipItem]:
+    raw = data.get("tips")
+    tips_list: list[Any] = raw if isinstance(raw, list) else []
+    out: list[ReviewInputTipItem] = []
+    for t in tips_list:
+        if not isinstance(t, dict):
+            continue
+        name = _strip_tip_html(_tip_str(t.get("name")))
+        if not name:
+            continue
+        loc = _tip_str(t.get("location"))
+        lng: float | None = None
+        lat: float | None = None
+        if loc and "," in loc:
+            parts = loc.split(",", 1)
+            try:
+                lng = float(parts[0].strip())
+                lat = float(parts[1].strip())
+            except ValueError:
+                pass
+        has_loc = lng is not None and lat is not None
+        out.append(
+            ReviewInputTipItem(
+                name=name,
+                subtitle=_input_tip_subtitle(t),
+                kind=_input_tip_kind(t, has_loc),
+                longitude=lng,
+                latitude=lat,
+                province=_tip_str(t.get("province")),
+                city=_tip_str(t.get("city")),
+                district=_tip_str(t.get("district")),
+            )
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _to_out(r: Review, author: User) -> ReviewOut:
     try:
         dishes = json.loads(r.dishes_json) if r.dishes_json else []
@@ -266,8 +366,6 @@ def create_review(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if body.latitude is None or body.longitude is None:
-        raise HTTPException(status_code=400, detail="请从高德检索结果中选择店铺位置后再提交")
     r = Review(
         user_id=user.id,
         restaurant_name=body.restaurant_name.strip(),
@@ -282,8 +380,8 @@ def create_review(
         avg_price=int(body.avg_price),
         dishes_json=json.dumps(body.dishes, ensure_ascii=False),
         recommend_tier=body.recommend_tier,
-        latitude=float(body.latitude),
-        longitude=float(body.longitude),
+        latitude=float(body.latitude) if body.latitude is not None else None,
+        longitude=float(body.longitude) if body.longitude is not None else None,
         images_json=_images_json_for_save(user.id, body.images),
         videos_json=_videos_json_for_save(user.id, body.videos),
         attachments_json=_attachments_json_for_save(user.id, body.attachments),
@@ -302,6 +400,24 @@ def my_reviews(
 ):
     rows = db.query(Review).filter(Review.user_id == user.id).order_by(Review.created_at.desc()).all()
     return [_to_out(r, user) for r in rows]
+
+
+@router.get("/input-tips", response_model=ReviewInputTipsOut)
+def review_input_tips(
+    keywords: str = Query("", max_length=96),
+    city: str = Query("", max_length=32),
+    _: User = Depends(get_current_user),
+):
+    """高德输入提示：店名输入时联想 POI（与发布时的关键字检索互补）。"""
+    kw = keywords.strip()
+    if not kw:
+        return ReviewInputTipsOut(tips=[])
+    data = _amap_input_tips(keywords=kw, city=city.strip())
+    st = str(data.get("status") or "")
+    if st != "1":
+        info = str(data.get("info") or data.get("infocode") or "输入提示失败")
+        raise HTTPException(status_code=502, detail=f"高德输入提示失败：{info}")
+    return ReviewInputTipsOut(tips=_parse_input_tips(data, limit=5))
 
 
 @router.post("/location-suggestions", response_model=ReviewLocationSuggestOut)
@@ -334,8 +450,6 @@ def update_review(
     r = db.query(Review).filter(Review.id == review_id, Review.user_id == user.id).first()
     if not r:
         raise HTTPException(status_code=404, detail="点评不存在或无权修改")
-    if body.latitude is None or body.longitude is None:
-        raise HTTPException(status_code=400, detail="请从高德检索结果中选择店铺位置后再提交")
     old_paths = set(_media_paths_for_review_row(r))
     new_json = _images_json_for_save(user.id, body.images)
     new_vjson = _videos_json_for_save(user.id, body.videos)
@@ -356,8 +470,8 @@ def update_review(
     r.avg_price = int(body.avg_price)
     r.dishes_json = json.dumps(body.dishes, ensure_ascii=False)
     r.recommend_tier = body.recommend_tier
-    r.latitude = float(body.latitude)
-    r.longitude = float(body.longitude)
+    r.latitude = float(body.latitude) if body.latitude is not None else None
+    r.longitude = float(body.longitude) if body.longitude is not None else None
     r.images_json = new_json
     r.videos_json = new_vjson
     r.attachments_json = new_ajson

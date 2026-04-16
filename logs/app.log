@@ -1927,3 +1927,632 @@ amap agent · messages
  'invalid_tool_calls': [],
  'usage_metadata': None}
 ========================================================================
+2026-04-16 15:10:23 | INFO     | app.routers.ai:45 - ai_chat user_id=1 lc_messages_count=1 last_user_preview='量化派周边没事推荐'
+2026-04-16 15:10:23 | INFO     | app.agent:650 - ai_sse user_id=1 phase=prep make_llm+bind+dialogue_ms=324.8 since_start_ms=324.8
+2026-04-16 15:10:24 | INFO     | app.agent:673 - ai_sse user_id=1 turn=0 phase=first_llm_chunk since_stream_start_ms=1001.5 since_sse_start_ms=1326.4
+2026-04-16 15:10:24 | INFO     | app.agent:720 - ai_sse user_id=1 turn=0 phase=llm_stream_end wall_ms=1249.4 saw_tool_chunks=True started_text_stream=False
+2026-04-16 15:10:25 | INFO     | app.agent:593 - ai_sse tool_done name=amap_geocode_geo ms=88.7
+2026-04-16 15:10:25 | INFO     | app.agent:673 - ai_sse user_id=1 turn=1 phase=first_llm_chunk since_stream_start_ms=757.4 since_sse_start_ms=2420.6
+2026-04-16 15:10:26 | INFO     | app.agent:720 - ai_sse user_id=1 turn=1 phase=llm_stream_end wall_ms=1145.7 saw_tool_chunks=True started_text_stream=False
+2026-04-16 15:10:26 | INFO     | app.agent:593 - ai_sse tool_done name=find_nearby_reviewed_restaurants ms=4.1
+2026-04-16 15:10:26 | INFO     | app.agent:673 - ai_sse user_id=1 turn=2 phase=first_llm_chunk since_stream_start_ms=735.9 since_sse_start_ms=3549.2
+2026-04-16 15:10:26 | INFO     | app.agent:703 - buffered: 量
+2026-04-16 15:10:26 | INFO     | app.agent:707 - ai_sse user_id=1 turn=2 phase=【first_token_to_client】 since_sse_start_ms=3549.3 since_stream_start_ms=736.1
+2026-04-16 15:10:29 | INFO     | app.agent:720 - ai_sse user_id=1 turn=2 phase=llm_stream_end wall_ms=3648.8 saw_tool_chunks=False started_text_stream=True
+2026-04-16 15:10:29 | INFO     | app.agent:809 - 
+========================================================================
+amap agent · messages
+========================================================================
+----------------
+[0] HumanMessage
+{'content': '量化派周边没事推荐',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'human',
+ 'name': None,
+ 'id': None}
+-------------
+[1] AIMessage
+{'content': '',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'ai',
+ 'name': None,
+ 'id': None,
+ 'tool_calls': [{'name': 'amap_geocode_geo',
+                 'args': {'address': '量化派', 'city': ''},
+                 'id': 'call_WYej38nt1bOOY45M6p1ESnFL',
+                 'type': 'tool_call'}],
+ 'invalid_tool_calls': [],
+ 'usage_metadata': None}
+---------------
+[2] ToolMessage
+{'content': '{"status": "1", "info": "OK", "infocode": "10000", "count": "1", "geocodes": '
+            '[{"formatted_address": "北京市朝阳区量化派", "country": "中国", "province": "北京市", '
+            '"citycode": "010", "city": "北京市", "district": "朝阳区", "township": [], '
+            '"neighborhood": {"name": [], "type": []}, "building": {"name": [], "type": []}, '
+            '"adcode": "110105", "street": [], "number": [], "location": '
+            '"116.492309,39.978747", "level": "兴趣点"}]}',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'tool',
+ 'name': 'amap_geocode_geo',
+ 'id': None,
+ 'tool_call_id': 'call_WYej38nt1bOOY45M6p1ESnFL',
+ 'artifact': None,
+ 'status': 'success'}
+-------------
+[3] AIMessage
+{'content': '',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'ai',
+ 'name': None,
+ 'id': None,
+ 'tool_calls': [{'name': 'find_nearby_reviewed_restaurants',
+                 'args': {'user_id': 1,
+                          'center_lng': 116.492309,
+                          'center_lat': 39.978747,
+                          'radius_km': 5,
+                          'query_scope': 'all'},
+                 'id': 'call_QAfzxa0yIrl9MmHnHQStzcPk',
+                 'type': 'tool_call'}],
+ 'invalid_tool_calls': [],
+ 'usage_metadata': None}
+---------------
+[4] ToolMessage
+{'content': '{"ok": true, "center": {"lng": 116.492309, "lat": 39.978747}, "radius_km": 5.0, '
+            '"query_scope": "all", "count": 4, "reviews": [{"review_id": 6, "author_username": '
+            '"wzj", "restaurant_name": "大王家面·饭", "city": "", "district": "北京市朝阳区", '
+            '"distance_km": 0.06, "dining_type": "dine_in", "recommend_tier": "NPC", '
+            '"overall_score": 3.88, "avg_price": 30, "content_preview": "一般", "created_at": '
+            '"2026-04-16T07:10:06"}, {"review_id": 2, "author_username": "wzj", '
+            '"restaurant_name": "磁器口重庆地摊火锅·自选称重（酒仙桥店）", "city": "北京市", "district": "朝阳区", '
+            '"distance_km": 0.51, "dining_type": "dine_in", "recommend_tier": "人上人", '
+            '"overall_score": 4.1, "avg_price": 100, "content_preview": '
+            '"自选称重的火锅，荤菜78一斤，素菜28一斤，两个人各一斤差不多够。辣锅底确实不错，但是芝麻酱没味，需要加盐，荤菜也有点不新鲜。", "created_at": '
+            '"2026-04-14T15:59:53"}, {"review_id": 4, "author_username": "wzj", '
+            '"restaurant_name": "豫石记羊汤（酒仙桥店）", "city": "北京市", "district": "朝阳区", '
+            '"distance_km": 0.7, "dining_type": "takeaway", "recommend_tier": "顶级", '
+            '"overall_score": 4.35, "avg_price": 25, "content_preview": '
+            '"羊杂汤味道不错，羊油辣椒和调料包都要加满，味道会更好，烧饼也很香！", "created_at": "2026-04-15T04:43:45"}, '
+            '{"review_id": 5, "author_username": "wzj", "restaurant_name": "尖叫熊猫成都冒菜（望京万象汇店）", '
+            '"city": "北京市", "district": "朝阳区", "distance_km": 4.04, "dining_type": "dine_in", '
+            '"recommend_tier": "顶级", "overall_score": 4.33, "avg_price": 44, '
+            '"content_preview": "锅底很香，冰粉也非常不错，食材还是比较新鲜的", "created_at": '
+            '"2026-04-15T14:22:20"}]}',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'tool',
+ 'name': 'find_nearby_reviewed_restaurants',
+ 'id': None,
+ 'tool_call_id': 'call_QAfzxa0yIrl9MmHnHQStzcPk',
+ 'artifact': None,
+ 'status': 'success'}
+-------------
+[5] AIMessage
+{'content': '量化派（朝阳区）周边我给你挑几家最近能吃的——都在你附近 **5km 内**（按距离）：\n'
+            '\n'
+            '1) **大王家面·饭**（朝阳区）  \n'
+            '- 距离：**0.06 km**  \n'
+            '- 类型：简餐/面饭  \n'
+            '- 评分：**3.88**  \n'
+            '- 人均：**30**  \n'
+            '- 点评摘要：整体“**一般**”。\n'
+            '\n'
+            '2) **磁器口重庆地摊火锅·自选称重（酒仙桥店）**（朝阳区）  \n'
+            '- 距离：**0.51 km**  \n'
+            '- 类型：火锅（自选称重）  \n'
+            '- 评分：**4.10**  \n'
+            '- 人均：**100**  \n'
+            '- 点评摘要：自选称重玩法方便；**辣锅底不错**，但**芝麻酱偏没味**、荤菜新鲜度一般。\n'
+            '\n'
+            '3) **豫石记羊汤（酒仙桥店）**（朝阳区）  \n'
+            '- 距离：**0.70 km**  \n'
+            '- 类型：羊汤/羊杂  \n'
+            '- 评分：**4.35**  \n'
+            '- 人均：**25**  \n'
+            '- 点评摘要：**羊杂汤味道不错**；烧饼也很香，调料/羊油辣椒要“加满”更好吃。\n'
+            '\n'
+            '4) **尖叫熊猫成都冒菜（望京万象汇店）**（望京万象汇一带）  \n'
+            '- 距离：**4.04 km**  \n'
+            '- 类型：冒菜  \n'
+            '- 评分：**4.33**  \n'
+            '- 人均：**44**  \n'
+            '- 点评摘要：**锅底香**，冰粉也很棒，食材相对新鲜。\n'
+            '\n'
+            '你想吃**火锅/面食/羊汤/冒菜**里哪种？我可以按你口味再帮你从这几家里选“更稳的一家”。',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'ai',
+ 'name': None,
+ 'id': None,
+ 'tool_calls': [],
+ 'invalid_tool_calls': [],
+ 'usage_metadata': None}
+========================================================================
+2026-04-16 15:40:54 | INFO     | app.routers.ai:45 - ai_chat user_id=1 lc_messages_count=1 last_user_preview='平定县有什么美食推荐'
+2026-04-16 15:40:55 | INFO     | app.agent:650 - ai_sse user_id=1 phase=prep make_llm+bind+dialogue_ms=323.8 since_start_ms=323.8
+2026-04-16 15:40:56 | INFO     | app.agent:673 - ai_sse user_id=1 turn=0 phase=first_llm_chunk since_stream_start_ms=1051.5 since_sse_start_ms=1375.4
+2026-04-16 15:40:56 | INFO     | app.agent:720 - ai_sse user_id=1 turn=0 phase=llm_stream_end wall_ms=1312.8 saw_tool_chunks=True started_text_stream=False
+2026-04-16 15:40:56 | INFO     | app.agent:593 - ai_sse tool_done name=amap_geocode_geo ms=83.5
+2026-04-16 15:40:57 | INFO     | app.agent:673 - ai_sse user_id=1 turn=1 phase=first_llm_chunk since_stream_start_ms=780.1 since_sse_start_ms=2500.6
+2026-04-16 15:40:57 | INFO     | app.agent:720 - ai_sse user_id=1 turn=1 phase=llm_stream_end wall_ms=1088.9 saw_tool_chunks=True started_text_stream=False
+2026-04-16 15:40:57 | INFO     | app.agent:593 - ai_sse tool_done name=find_nearby_reviewed_restaurants ms=4.5
+2026-04-16 15:40:58 | INFO     | app.agent:673 - ai_sse user_id=1 turn=2 phase=first_llm_chunk since_stream_start_ms=930.8 since_sse_start_ms=3745.0
+2026-04-16 15:40:58 | INFO     | app.agent:720 - ai_sse user_id=1 turn=2 phase=llm_stream_end wall_ms=1074.9 saw_tool_chunks=True started_text_stream=False
+2026-04-16 15:40:58 | INFO     | app.agent:593 - ai_sse tool_done name=list_user_reviewed_restaurants ms=49.0
+2026-04-16 15:40:59 | INFO     | app.agent:673 - ai_sse user_id=1 turn=3 phase=first_llm_chunk since_stream_start_ms=745.5 since_sse_start_ms=4684.0
+2026-04-16 15:40:59 | INFO     | app.agent:703 - buffered: 平
+2026-04-16 15:40:59 | INFO     | app.agent:707 - ai_sse user_id=1 turn=3 phase=【first_token_to_client】 since_sse_start_ms=4684.2 since_stream_start_ms=745.8
+2026-04-16 15:41:00 | INFO     | app.agent:720 - ai_sse user_id=1 turn=3 phase=llm_stream_end wall_ms=2229.0 saw_tool_chunks=False started_text_stream=True
+2026-04-16 15:41:00 | INFO     | app.agent:809 - 
+========================================================================
+amap agent · messages
+========================================================================
+----------------
+[0] HumanMessage
+{'content': '平定县有什么美食推荐',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'human',
+ 'name': None,
+ 'id': None}
+-------------
+[1] AIMessage
+{'content': '',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'ai',
+ 'name': None,
+ 'id': None,
+ 'tool_calls': [{'name': 'amap_geocode_geo',
+                 'args': {'address': '平定县', 'city': ''},
+                 'id': 'call_lbNHU3IO2Ts2PmFzaC5qnSn3',
+                 'type': 'tool_call'}],
+ 'invalid_tool_calls': [],
+ 'usage_metadata': None}
+---------------
+[2] ToolMessage
+{'content': '{"status": "1", "info": "OK", "infocode": "10000", "count": "1", "geocodes": '
+            '[{"formatted_address": "山西省阳泉市平定县", "country": "中国", "province": "山西省", '
+            '"citycode": "0353", "city": "阳泉市", "district": "平定县", "township": [], '
+            '"neighborhood": {"name": [], "type": []}, "building": {"name": [], "type": []}, '
+            '"adcode": "140321", "street": [], "number": [], "location": '
+            '"113.629777,37.804986", "level": "区县"}]}',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'tool',
+ 'name': 'amap_geocode_geo',
+ 'id': None,
+ 'tool_call_id': 'call_lbNHU3IO2Ts2PmFzaC5qnSn3',
+ 'artifact': None,
+ 'status': 'success'}
+-------------
+[3] AIMessage
+{'content': '',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'ai',
+ 'name': None,
+ 'id': None,
+ 'tool_calls': [{'name': 'find_nearby_reviewed_restaurants',
+                 'args': {'user_id': 1,
+                          'center_lng': 113.629777,
+                          'center_lat': 37.804986,
+                          'radius_km': 8,
+                          'query_scope': 'all'},
+                 'id': 'call_qOjytL77eDTnn475pI5ColAE',
+                 'type': 'tool_call'}],
+ 'invalid_tool_calls': [],
+ 'usage_metadata': None}
+---------------
+[4] ToolMessage
+{'content': '{"ok": true, "center": {"lng": 113.629777, "lat": 37.804986}, "radius_km": 8.0, '
+            '"query_scope": "all", "count": 1, "reviews": [{"review_id": 6, "author_username": '
+            '"wzj", "restaurant_name": "金源国际", "city": "", "district": "山西省阳泉市平定县", '
+            '"distance_km": 2.76, "dining_type": "dine_in", "recommend_tier": "人上人", '
+            '"overall_score": 4.0, "avg_price": 100, "content_preview": "还行", "created_at": '
+            '"2026-04-16T07:40:40"}]}',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'tool',
+ 'name': 'find_nearby_reviewed_restaurants',
+ 'id': None,
+ 'tool_call_id': 'call_qOjytL77eDTnn475pI5ColAE',
+ 'artifact': None,
+ 'status': 'success'}
+-------------
+[5] AIMessage
+{'content': '',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'ai',
+ 'name': None,
+ 'id': None,
+ 'tool_calls': [{'name': 'list_user_reviewed_restaurants',
+                 'args': {'user_id': 1, 'query_scope': 'all'},
+                 'id': 'call_LHijwL7C7AIPwU1xi8jnjfIU',
+                 'type': 'tool_call'}],
+ 'invalid_tool_calls': [],
+ 'usage_metadata': None}
+---------------
+[6] ToolMessage
+{'content': '{"ok": true, "query_scope": "all", "count": 6, "reviews": [{"review_id": 6, '
+            '"user_id": 1, "author_username": "wzj", "restaurant_name": "金源国际", "city": "", '
+            '"district": "山西省阳泉市平定县", "dining_type": "dine_in", "recommend_tier": "人上人", '
+            '"overall_score": 4.0, "avg_price": 100, "content_preview": "还行", "created_at": '
+            '"2026-04-16T07:40:40"}, {"review_id": 5, "user_id": 1, "author_username": "wzj", '
+            '"restaurant_name": "尖叫熊猫成都冒菜（望京万象汇店）", "city": "北京市", "district": "朝阳区", '
+            '"dining_type": "dine_in", "recommend_tier": "顶级", "overall_score": 4.33, '
+            '"avg_price": 44, "content_preview": "锅底很香，冰粉也非常不错，食材还是比较新鲜的", "created_at": '
+            '"2026-04-15T14:22:20"}, {"review_id": 4, "user_id": 1, "author_username": "wzj", '
+            '"restaurant_name": "豫石记羊汤（酒仙桥店）", "city": "北京市", "district": "朝阳区", '
+            '"dining_type": "takeaway", "recommend_tier": "顶级", "overall_score": 4.35, '
+            '"avg_price": 25, "content_preview": "羊杂汤味道不错，羊油辣椒和调料包都要加满，味道会更好，烧饼也很香！", '
+            '"created_at": "2026-04-15T04:43:45"}, {"review_id": 3, "user_id": 2, '
+            '"author_username": "www", "restaurant_name": "柳州肥姨妈（五道口店）", "city": "北京市", '
+            '"district": "海淀区", "dining_type": "dine_in", "recommend_tier": "顶级", '
+            '"overall_score": 4.8, "avg_price": 20, "content_preview": '
+            '"今天路过尝了肥姨妈螺蛳粉，人均20挺划算。\\n卤蛋入味，兰花干也脆，汤头够香够辣，嗦一口就停不下来。\\n配图里那碗看着就很扎实，料足！\\n下次还想试试加个炸蛋 '
+            '🍜🔥", "created_at": "2026-04-15T02:53:50"}, {"review_id": 2, "user_id": 1, '
+            '"author_username": "wzj", "restaurant_name": "磁器口重庆地摊火锅·自选称重（酒仙桥店）", "city": '
+            '"北京市", "district": "朝阳区", "dining_type": "dine_in", "recommend_tier": "人上人", '
+            '"overall_score": 4.1, "avg_price": 100, "content_preview": '
+            '"自选称重的火锅，荤菜78一斤，素菜28一斤，两个人各一斤差不多够。辣锅底确实不错，但是芝麻酱没味，需要加盐，荤菜也有点不新鲜。", "created_at": '
+            '"2026-04-14T15:59:53"}, {"review_id": 1, "user_id": 1, "author_username": "wzj", '
+            '"restaurant_name": "河北石家庄安徽牛肉板面", "city": "北京市", "district": "朝阳区", '
+            '"dining_type": "takeaway", "recommend_tier": "顶级", "overall_score": 4.1, '
+            '"avg_price": 18, "content_preview": "板面里给几片假肉，辣椒和汤很香，面有点软", "created_at": '
+            '"2026-04-14T15:51:32"}]}',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'tool',
+ 'name': 'list_user_reviewed_restaurants',
+ 'id': None,
+ 'tool_call_id': 'call_LHijwL7C7AIPwU1xi8jnjfIU',
+ 'artifact': None,
+ 'status': 'success'}
+-------------
+[7] AIMessage
+{'content': '平定县我这边基于你/用户的真实点评库，目前能直接对应到“平定县”的美食推荐有 1 家（距离为距平定县中心约 8km 内）：\n'
+            '\n'
+            '1) **金源国际**  \n'
+            '- **类型**：正餐/堂食（dine_in）  \n'
+            '- **综合评分**：4.0  \n'
+            '- **人均**：约 100 元  \n'
+            '- **点评摘要**：*“还行”*  \n'
+            '- **距离**：约 **2.76 km**  \n'
+            '- **建议**：如果你想吃正餐、预算在百元左右，可以先从这家看起。\n'
+            '\n'
+            '另外，你如果愿意告诉我你想吃的方向（比如：**面/羊汤/火锅/小吃**）以及大概位置（县城哪里、是否在高速口/景区附近），我就能把半径扩大并补充更多店名给你筛选。',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'ai',
+ 'name': None,
+ 'id': None,
+ 'tool_calls': [],
+ 'invalid_tool_calls': [],
+ 'usage_metadata': None}
+========================================================================
+2026-04-16 15:41:19 | INFO     | app.routers.ai:45 - ai_chat user_id=1 lc_messages_count=3 last_user_preview='平定县政府附近美食推荐'
+2026-04-16 15:41:19 | INFO     | app.agent:650 - ai_sse user_id=1 phase=prep make_llm+bind+dialogue_ms=191.3 since_start_ms=191.3
+2026-04-16 15:41:20 | INFO     | app.agent:673 - ai_sse user_id=1 turn=0 phase=first_llm_chunk since_stream_start_ms=806.4 since_sse_start_ms=997.9
+2026-04-16 15:41:20 | INFO     | app.agent:720 - ai_sse user_id=1 turn=0 phase=llm_stream_end wall_ms=981.0 saw_tool_chunks=True started_text_stream=False
+2026-04-16 15:41:20 | INFO     | app.agent:593 - ai_sse tool_done name=amap_geocode_geo ms=100.3
+2026-04-16 15:41:21 | INFO     | app.agent:673 - ai_sse user_id=1 turn=1 phase=first_llm_chunk since_stream_start_ms=708.2 since_sse_start_ms=1981.3
+2026-04-16 15:41:21 | INFO     | app.agent:720 - ai_sse user_id=1 turn=1 phase=llm_stream_end wall_ms=1009.9 saw_tool_chunks=True started_text_stream=False
+2026-04-16 15:41:21 | INFO     | app.agent:593 - ai_sse tool_done name=find_nearby_reviewed_restaurants ms=2.4
+2026-04-16 15:41:22 | INFO     | app.agent:673 - ai_sse user_id=1 turn=2 phase=first_llm_chunk since_stream_start_ms=1048.5 since_sse_start_ms=3334.3
+2026-04-16 15:41:23 | INFO     | app.agent:720 - ai_sse user_id=1 turn=2 phase=llm_stream_end wall_ms=1449.5 saw_tool_chunks=True started_text_stream=False
+2026-04-16 15:41:23 | INFO     | app.agent:593 - ai_sse tool_done name=amap_place_around ms=147.7
+2026-04-16 15:41:24 | INFO     | app.agent:673 - ai_sse user_id=1 turn=3 phase=first_llm_chunk since_stream_start_ms=817.3 since_sse_start_ms=4700.9
+2026-04-16 15:41:24 | INFO     | app.agent:703 - buffered: 你
+2026-04-16 15:41:24 | INFO     | app.agent:707 - ai_sse user_id=1 turn=3 phase=【first_token_to_client】 since_sse_start_ms=4701.4 since_stream_start_ms=817.8
+2026-04-16 15:41:26 | INFO     | app.agent:720 - ai_sse user_id=1 turn=3 phase=llm_stream_end wall_ms=3528.1 saw_tool_chunks=False started_text_stream=True
+2026-04-16 15:41:26 | INFO     | app.agent:809 - 
+========================================================================
+amap agent · messages
+========================================================================
+----------------
+[0] HumanMessage
+{'content': '平定县有什么美食推荐',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'human',
+ 'name': None,
+ 'id': None}
+-------------
+[1] AIMessage
+{'content': '平定县我这边基于你/用户的真实点评库，目前能直接对应到“平定县”的美食推荐有 1 家（距离为距平定县中心约 8km 内）：\n'
+            '\n'
+            '1) **金源国际**  \n'
+            '- **类型**：正餐/堂食（dine_in）  \n'
+            '- **综合评分**：4.0  \n'
+            '- **人均**：约 100 元  \n'
+            '- **点评摘要**：*“还行”*  \n'
+            '- **距离**：约 **2.76 km**  \n'
+            '- **建议**：如果你想吃正餐、预算在百元左右，可以先从这家看起。\n'
+            '\n'
+            '另外，你如果愿意告诉我你想吃的方向（比如：**面/羊汤/火锅/小吃**）以及大概位置（县城哪里、是否在高速口/景区附近），我就能把半径扩大并补充更多店名给你筛选。',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'ai',
+ 'name': None,
+ 'id': None,
+ 'tool_calls': [],
+ 'invalid_tool_calls': [],
+ 'usage_metadata': None}
+----------------
+[2] HumanMessage
+{'content': '平定县政府附近美食推荐',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'human',
+ 'name': None,
+ 'id': None}
+-------------
+[3] AIMessage
+{'content': '',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'ai',
+ 'name': None,
+ 'id': None,
+ 'tool_calls': [{'name': 'amap_geocode_geo',
+                 'args': {'address': '平定县政府', 'city': '平定县'},
+                 'id': 'call_5EcRQ4gaqE80ULalYUNjSCs1',
+                 'type': 'tool_call'}],
+ 'invalid_tool_calls': [],
+ 'usage_metadata': None}
+---------------
+[4] ToolMessage
+{'content': '{"status": "1", "info": "OK", "infocode": "10000", "count": "1", "geocodes": '
+            '[{"formatted_address": "山西省阳泉市平定县", "country": "中国", "province": "山西省", '
+            '"citycode": "0353", "city": "阳泉市", "district": "平定县", "township": [], '
+            '"neighborhood": {"name": [], "type": []}, "building": {"name": [], "type": []}, '
+            '"adcode": "140321", "street": [], "number": [], "location": '
+            '"113.629777,37.804986", "level": "区县"}]}',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'tool',
+ 'name': 'amap_geocode_geo',
+ 'id': None,
+ 'tool_call_id': 'call_5EcRQ4gaqE80ULalYUNjSCs1',
+ 'artifact': None,
+ 'status': 'success'}
+-------------
+[5] AIMessage
+{'content': '',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'ai',
+ 'name': None,
+ 'id': None,
+ 'tool_calls': [{'name': 'find_nearby_reviewed_restaurants',
+                 'args': {'user_id': 1,
+                          'center_lng': 113.629777,
+                          'center_lat': 37.804986,
+                          'radius_km': 5,
+                          'query_scope': 'all'},
+                 'id': 'call_QIxkDDeYzYZTmF62HF2MNCNE',
+                 'type': 'tool_call'}],
+ 'invalid_tool_calls': [],
+ 'usage_metadata': None}
+---------------
+[6] ToolMessage
+{'content': '{"ok": true, "center": {"lng": 113.629777, "lat": 37.804986}, "radius_km": 5.0, '
+            '"query_scope": "all", "count": 1, "reviews": [{"review_id": 6, "author_username": '
+            '"wzj", "restaurant_name": "金源国际", "city": "", "district": "山西省阳泉市平定县", '
+            '"distance_km": 2.76, "dining_type": "dine_in", "recommend_tier": "人上人", '
+            '"overall_score": 4.0, "avg_price": 100, "content_preview": "还行", "created_at": '
+            '"2026-04-16T07:40:40"}]}',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'tool',
+ 'name': 'find_nearby_reviewed_restaurants',
+ 'id': None,
+ 'tool_call_id': 'call_QIxkDDeYzYZTmF62HF2MNCNE',
+ 'artifact': None,
+ 'status': 'success'}
+-------------
+[7] AIMessage
+{'content': '',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'ai',
+ 'name': None,
+ 'id': None,
+ 'tool_calls': [{'name': 'amap_place_around',
+                 'args': {'location': '113.629777,37.804986',
+                          'keywords': '美食',
+                          'radius': 2000,
+                          'types': '',
+                          'page': 1,
+                          'offset': 10},
+                 'id': 'call_LvN94m0Q24tqIfUECMoVQ0jO',
+                 'type': 'tool_call'}],
+ 'invalid_tool_calls': [],
+ 'usage_metadata': None}
+---------------
+[8] ToolMessage
+{'content': '{"suggestion": {"keywords": [], "cities": []}, "count": "450", "infocode": '
+            '"10000", "pois": [{"parent": [], "pcode": "140000", "keytag": "西式快餐", "type": '
+            '"餐饮服务;中餐厅;中餐厅", "photos": [{"title": [], "url": '
+            '"https://store.is.autonavi.com/showpic/753e688d4e04a3c4a7d0c0c221d8e639"}, '
+            '{"title": [], "url": '
+            '"https://aos-comment.amap.com/B0KKR7ZE80/comment/content_media_external_file_100012256_1765678686135_69963116.jpg"}, '
+            '{"title": [], "url": '
+            '"https://store.is.autonavi.com/showpic/27406152979b9541da322775e12cebd6"}], '
+            '"building": [], "typecode": "050100", "poiweight": [], "citycode": "0353", '
+            '"adname": "平定县", "children": [], "featured_reviews_remake": [], "tel": '
+            '"16635454553", "id": "B0KKR7ZE80", "tag": "中国汉堡", "entr_location": [], "adcode": '
+            '"140321", "pname": "山西省", "biz_type": "diner", "cityname": "阳泉市", "postcode": [], '
+            '"business_area": "平阳路", "childtype": [], "atag": "中国汉堡", "name": '
+            '"塔斯汀中国汉堡(阳泉市平定锦程购物中心店)", "shopid": [], "favorite_num": [], "navi_poiid": [], '
+            '"distance": "42", "importance": [], "biz_ext": {"cost": "17.00", "opentime2": '
+            '"周一至周日 09:30-23:30", "rating": "4.2", "open_time": "09:30-23:30", '
+            '"meal_ordering": "0"}, "recommend": "0", "discount_num": "0", "gridcode": '
+            '"5613556011", "shopinfo": "0", "alias": [], "event": [], "indoor_map": "0", '
+            '"email": [], "timestamp": "2026-04-14 18:08:43", "website": [], "address": '
+            '"冠山镇锦程商业街7号", "space_num": [], "match": "0", "indoor_data": {"cmsid": [], '
+            '"truefloor": [], "cpid": [], "floor": []}, "exit_location": [], "location": '
+            '"113.629378,37.805196", "groupbuy_num": "0", "featured_reviews": []}, {"parent": '
+            '[], "pcode": "140000", "keytag": "小火锅", "type": "餐饮服务;中餐厅;火锅店", "photos": [], '
+            '"building": [], "typecode": "050117", "poiweight": [], "citycode": "0353", '
+            '"adname": "平定县", "children": [], "featured_reviews_remake": [], "tel": [], "id": '
+            '"B0L04LYFVB", "tag": "小火锅", "entr_location": "113.629834,37.803649", "adcode": '
+            '"140321", "pname": "山西省", "biz_type": "diner", "cityname": "阳泉市", "postcode": [], '
+            '"business_area": "平阳路", "childtype": [], "atag": "小火锅", "name": "坪梅小火锅", '
+            '"shopid": [], "favorite_num": [], "navi_poiid": [], "distance": "151", '
+            '"importance": [], "biz_ext": {"cost": [], "opentime2": [], "rating": "2.8", '
+            '"open_time": [], "meal_ordering": "0"}, "recommend": "0", "discount_num": "0", '
+            '"gridcode": "5613556011", "shopinfo": "0", "alias": [], "event": [], '
+            '"indoor_map": "0", "email": [], "timestamp": "2026-02-03 20:06:43", "website": '
+            '[], "address": "评梅街与东大街交叉口西180米", "space_num": [], "match": "0", "indoor_data": '
+            '{"cmsid": [], "truefloor": [], "cpid": [], "floor": []}, "exit_location": [], '
+            '"location": "113.629710,37.803625", "groupbuy_num": "0", "featured_reviews": []}, '
+            '{"parent": [], "pcode": "140000", "keytag": "中餐", "type": "餐饮服务;中餐厅;中餐厅", '
+            '"photos": [{"title": [], "url": '
+            '"https://store.is.autonavi.com/showpic/9d085c80f84fdd9fcf83e30773f352c7"}], '
+            '"building": [], "typecode": "050100", "poiweight": [], "citycode": "0353", '
+            '"adname": "平定县", "children": [], "featured_reviews_remake": [], "tel": '
+            '"13935306307;18703536998", "id": "B0HB6SLPAM", "tag": [], "entr_location": '
+            '"113.627969,37.804388", "adcode": "140321", "pname": "山西省", "biz_type": "diner", '
+            '"cityname": "阳泉市", "postcode": [], "business_area": "平阳路", "childtype": [], '
+            '"atag": [], "name": "老高家双成分店", "shopid": [], "favorite_num": [], "navi_poiid": '
+            '[], "distance": "165", "importance": [], "biz_ext": {"cost": "28.00", '
+            '"opentime2": [], "rating": "3.9", "open_time": [], "meal_ordering": "0"}, '
+            '"recommend": "0", "discount_num": "0", "gridcode": "5613556010", "shopinfo": "0", '
+            '"alias": [], "event": [], "indoor_map": "0", "email": [], "timestamp": '
+            '"2026-04-09 18:58:56", "website": [], "address": "平阳路与城北街交叉口西南280米", "space_num": '
+            '[], "match": "0", "indoor_data": {"cmsid": [], "truefloor": [], "cpid": [], '
+            '"floor": []}, "exit_location": [], "location": "113.628002,37.804485", '
+            '"groupbuy_num": "0", "featured_reviews": []}, {"parent": [], "pcode": "140000", '
+            '"keytag": "中餐", "type": "餐饮服务;中餐厅;中餐厅", "photos": [{"title": [], "url": '
+            '"http://store.is.autonavi.com/showpic/331a611c4fd598cefb3e13800764263d"}, '
+            '{"title": [], "url": '
+            '"https://aos-comment.amap.com/B0FFJ12XF8/comment/content_media_external_file_100007338_1751939667103_10316946.jpg"}], '
+            '"building": [], "typecode": "050100", "poiweight": [], "citycode": "0353", '
+            '"adname": "平定县", "children": [], "featured_reviews_remake": [], "tel": [], "id": '
+            '"B0FFJ12XF8", "tag": [], "entr_location": [], "adcode": "140321", "pname": "山西省", '
+            '"biz_type": "diner", "cityname": "阳泉市", "postcode": [], "business_area": "平阳路", '
+            '"childtype": [], "atag": [], "name": "清风饭庄", "shopid": [], "favorite_num": [], '
+            '"navi_poiid": [], "distance": "225", "importance": [], "biz_ext": {"cost": [], '
+            '"opentime2": [], "rating": "3.5", "open_time": [], "meal_ordering": "0"}, '
+            '"recommend": "0", "discount_num": "0", "gridcode": "5613556020", "shopinfo": "0", '
+            '"alias": [], "event": [], "indoor_map": "0", "email": [], "timestamp": '
+            '"2026-01-27 09:35:43", "website": [], "address": "平定县人民医院南门东50米", "space_num": '
+            '[], "match": "0", "indoor_data": {"cmsid": [], "truefloor": [], "cpid": [], '
+            '"floor": []}, "exit_location": [], "location": "113.628073,37.806505", '
+            '"groupbuy_num": "0", "featured_reviews": []}, {"parent": "B0FFI5QJQO", "pcode": '
+            '"140000", "keytag": "小吃快餐", "type": "餐饮服务;快餐厅;快餐厅", "photos": [{"title": [], '
+            '"url": "http://store.is.autonavi.com/showpic/370fdb8eb512c89ad32dc8787abe8526"}], '
+            '"building": [], "typecode": "050300", "poiweight": [], "citycode": "0353", '
+            '"adname": "平定县", "children": [], "featured_reviews_remake": [], "tel": '
+            '"13293533518", "id": "B0GD5L56HS", "tag": [], "entr_location": [], "adcode": '
+            '"140321", "pname": "山西省", "biz_type": "diner", "cityname": "阳泉市", "postcode": [], '
+            '"business_area": "平阳路", "childtype": "320", "atag": [], "name": "快餐店(涞水家园店)", '
+            '"shopid": [], "favorite_num": [], "navi_poiid": [], "distance": "235", '
+            '"importance": [], "biz_ext": {"cost": "92.00", "opentime2": "周一至周日 06:00-22:00", '
+            '"rating": "3.4", "open_time": "06:00-22:00", "meal_ordering": "0"}, "recommend": '
+            '"0", "discount_num": "0", "gridcode": "5613556010", "shopinfo": "0", "alias": [], '
+            '"event": [], "indoor_map": "0", "email": [], "timestamp": "2026-04-11 13:11:04", '
+            '"website": [], "address": "涞水家园东南门旁", "space_num": [], "match": "0", '
+            '"indoor_data": {"cmsid": [], "truefloor": [], "cpid": [], "floor": []}, '
+            '"exit_location": [], "location": "113.627117,37.804740", "groupbuy_num": "0", '
+            '"featured_reviews": []}, {"parent": "B0FFI5QJQO", "pcode": "140000", "keytag": '
+            '"特色菜系", "type": "餐饮服务;餐饮相关场所;餐饮相关", "photos": [], "building": [], "typecode": '
+            '"050000", "poiweight": [], "citycode": "0353", "adname": "平定县", "children": [], '
+            '"featured_reviews_remake": [], "tel": [], "id": "B0JUOM80SX", "tag": [], '
+            '"entr_location": "113.627502,37.804530", "adcode": "140321", "pname": "山西省", '
+            '"biz_type": "diner", "cityname": "阳泉市", "postcode": [], "business_area": "平阳路", '
+            '"childtype": "320", "atag": [], "name": "皇后秘制猪蹄(新安店)", "shopid": [], '
+            '"favorite_num": [], "navi_poiid": [], "distance": "237", "importance": [], '
+            '"biz_ext": {"cost": "24.00", "opentime2": [], "rating": "3.9", "open_time": [], '
+            '"meal_ordering": "0"}, "recommend": "0", "discount_num": "0", "gridcode": '
+            '"5613556010", "shopinfo": "1", "alias": [], "event": [], "indoor_map": "0", '
+            '"email": [], "timestamp": "2026-04-14 17:35:37", "website": [], "address": '
+            '"涞水家园东南门旁", "space_num": [], "match": "0", "indoor_data": {"cmsid": [], '
+            '"truefloor": [], "cpid": [], "floor": []}, "exit_location": [], "location": '
+            '"113.627097,37.804739", "groupbuy_num": "0", "featured_reviews": []}, {"parent": '
+            '"B0FFI5QJQO", "pcode": "140000", "keytag": "炸鸡炸串", "type": "餐饮服务;餐饮相关场所;餐饮相关", '
+            '"photos": [{"title": [], "url": '
+            '"http://store.is.autonavi.com/showpic/1747ab798ef588c8a888fd8e554162c1"}, '
+            '{"title": [], "url": '
+            '"http://store.is.autonavi.com/showpic/1604c23adf40993d51df4379b95316cd"}, '
+            '{"title": [], "url": '
+            '"http://store.is.autonavi.com/showpic/f281b9069afcf89c24f9d48b37c3a1fb"}], '
+            '"building": [], "typecode": "050000", "poiweight": [], "citycode": "0353", '
+            '"adname": "平定县", "children": [], "featured_reviews_remake": [], "tel": '
+            '"18404967765", "id": "B0FFK1ULVW", "tag": [], "entr_location": [], "adcode": '
+            '"140321", "pname": "山西省", "biz_type": "diner", "cityname": "阳泉市", "postcode": [], '
+            '"business_area": "平阳路", "childtype": "320", "atag": [], "name": "香酥炸鸡(涞水家园店)", '
+            '"shopid": [], "favorite_num": [], "navi_poiid": [], "distance": "238", '
+            '"importance": [], "biz_ext": {"cost": "13.00", "opentime2": [], "rating": "3.4", '
+            '"open_time": [], "meal_ordering": "0"}, "recommend": "0", "discount_num": "0", '
+            '"gridcode": "5613556010", "shopinfo": "1", "alias": [], "event": [], '
+            '"indoor_map": "0", "email": [], "timestamp": "2026-03-29 11:28:44", "website": '
+            '[], "address": "冠山镇新安三区4号楼24号底商", "space_num": [], "match": "0", "indoor_data": '
+            '{"cmsid": [], "truefloor": [], "cpid": [], "floor": []}, "exit_location": [], '
+            '"location": "113.627075,37.804775", "groupbuy_num": "0", "featured_reviews": []}, '
+            '{"parent": [], "pcode": "140000", "keytag": "拉面", "type": "餐饮服务;中餐厅;中餐厅", '
+            '"photos": [{"title": [], "url": '
+            '"http://store.is.autonavi.com/showpic/3b901f7503fa42795afeedac3aa33f0f"}, '
+            '{"title": [], "url": '
+            '"http://store.is.autonavi.com/showpic/b139581746e5611be25bcb983293b1a1"}], '
+            '"building": [], "typecode": "050100", "poiweight": [], "citycode": "0353", '
+            '"adname": "平定县", "children": [], "featured_reviews_remake": [], "tel": '
+            '"13513537416", "id": "B0FFGERB18", "tag": [], "entr_location": '
+            '"113.632145,37.804201", "adcode": "140321", "pname": "山西省", "biz_type": "diner", '
+            '"cityname": "阳泉市", "postcode": [], "business_area": "平阳路", "childtype": [], '
+            '"atag": [], "name": "二小拉面馆", "shopid": [], "favorite_num": [], "navi_poiid": [], '
+            '"distance": "248", "importance": [], "biz_ext": {"cost": "21.00", "opentime2": '
+            '[], "rating": "3.5", "open_time": [], "meal_ordering": "0"}, "recommend": "0", '
+            '"discount_num": "0", "gridcode": "5613556011", "shopinfo": "0", "alias": [], '
+            '"event": [], "indoor_map": "0", "email": [], "timestamp": "2026-04-08 10:30:32", '
+            '"website": [], "address": "评梅街与平阳路交叉口东60米", "space_num": []
+…(truncated)
+-------------
+[9] AIMessage
+{'content': '你说的“平定县政府附近”，我按 **平定县政府** 定位后给你两类推荐：**有你/用户点评库实锤的**，以及**地图附近热门店（补足选择）**。\n'
+            '\n'
+            '## 1）你点评库里：最靠谱的一家（距约 2.76km）\n'
+            '1. **金源国际**  \n'
+            '- 类型：正餐/堂食  \n'
+            '- 综合评分：**4.0**  \n'
+            '- 人均：约 **100 元**  \n'
+            '- 点评摘要：*“还行”*  \n'
+            '- 距离：**约 2.76 km**\n'
+            '\n'
+            '## 2）高德地图附近美食（距平定县政府约 1~4km 内，供备选）\n'
+            '2. **塔斯汀中国汉堡（阳泉市平定锦程购物中心店）**（西式快餐）  \n'
+            '- 距离：约 **42 m**  \n'
+            '- 地址：冠山镇锦程商业街7号\n'
+            '\n'
+            '3. **老高家双成分店**（中餐）  \n'
+            '- 距离：约 **165 m**  \n'
+            '- 地址：平阳路与城北街交叉口西南280米\n'
+            '\n'
+            '4. **清风饭庄**（中餐）  \n'
+            '- 距离：约 **225 m**  \n'
+            '- 地址：平定县人民医院南门东50米\n'
+            '\n'
+            '5. **二小拉面馆**（拉面）  \n'
+            '- 距离：约 **248 m**  \n'
+            '- 地址：评梅街与平阳路交叉口东60米\n'
+            '\n'
+            '6. **大同七中削面（平阳路店）**（刀削面/削面）  \n'
+            '- 距离：约 **251 m**  \n'
+            '- 地址：评梅广场对面\n'
+            '\n'
+            '你更想吃 **面/小吃/家常菜/快餐** 还是 **火锅**？我可以再按口味把附近再精筛一轮。',
+ 'additional_kwargs': {},
+ 'response_metadata': {},
+ 'type': 'ai',
+ 'name': None,
+ 'id': None,
+ 'tool_calls': [],
+ 'invalid_tool_calls': [],
+ 'usage_metadata': None}
+========================================================================

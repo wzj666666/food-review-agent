@@ -164,7 +164,9 @@ export function ReviewsTab() {
           </div>
         )}
         {!loading &&
-          list.map((r) => (
+          list.map((r) => {
+            const locationText = [r.province, r.city, r.district].filter(Boolean).join("");
+            return (
             <article key={r.id} className="card" style={{ padding: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
                 <div
@@ -188,10 +190,7 @@ export function ReviewsTab() {
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, alignItems: "center" }}>
                 <span className="chip">{diningLabel(r.dining_type)}</span>
-                <span className="chip">
-                  {r.city}
-                  {r.district ? ` · ${r.district}` : ""}
-                </span>
+                <span className="chip">{locationText || "位置未填"}</span>
                 <span className="chip">人均 ¥{r.avg_price}</span>
                 <span className="chip">@{r.author_username}</span>
               </div>
@@ -217,7 +216,8 @@ export function ReviewsTab() {
               <ExpandableReviewContent text={r.content} />
               <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>{formatDateTimeBeijing(r.created_at)}</div>
             </article>
-          ))}
+            );
+          })}
       </div>
 
       {sheetOpen && (

@@ -138,7 +138,9 @@ export function ProfileTab({ user, onUserUpdated, onLogout }: Props) {
             暂无个人点评记录。
           </div>
         )}
-        {mine.map((r) => (
+        {mine.map((r) => {
+          const locationText = [r.province, r.city, r.district].filter(Boolean).join("");
+          return (
           <div key={r.id} className="card" style={{ padding: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -156,8 +158,7 @@ export function ProfileTab({ user, onUserUpdated, onLogout }: Props) {
                   </div>
                 </div>
                 <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
-                  {r.city}
-                  {r.district ? ` · ${r.district}` : ""} · 综合 {r.overall_score.toFixed(1)}
+                  {locationText ? `${locationText} · ` : ""}综合 {r.overall_score.toFixed(1)}
                 </div>
               </div>
               <div data-review-menu={r.id} style={{ position: "relative", flexShrink: 0 }}>
@@ -264,7 +265,8 @@ export function ProfileTab({ user, onUserUpdated, onLogout }: Props) {
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <button

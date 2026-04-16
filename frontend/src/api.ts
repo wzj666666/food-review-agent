@@ -194,6 +194,32 @@ export type ReviewPoiSuggestion = {
   type?: string;
 };
 
+export type ReviewInputTipItem = {
+  name: string;
+  subtitle: string;
+  kind: "poi" | "bus" | "keyword";
+  longitude?: number | null;
+  latitude?: number | null;
+  province?: string;
+  city?: string;
+  district?: string;
+};
+
+export async function fetchReviewInputTips(params: {
+  keywords: string;
+  city: string;
+  signal?: AbortSignal;
+}) {
+  const sp = new URLSearchParams();
+  sp.set("keywords", params.keywords.trim());
+  const c = params.city.trim();
+  if (c) sp.set("city", c);
+  return apiFetch(`/api/reviews/input-tips?${sp.toString()}`, {
+    method: "GET",
+    signal: params.signal,
+  }) as Promise<{ tips: ReviewInputTipItem[] }>;
+}
+
 export async function fetchReviewLocationSuggestions(body: {
   restaurant_name: string;
   city: string;
