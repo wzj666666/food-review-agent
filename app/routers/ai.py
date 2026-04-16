@@ -8,6 +8,7 @@ from app.agent import iter_amap_advisor_sse
 from app.deps import get_current_user
 from app.models import User
 from app.schemas import AIChatRequest
+from app.logger import logger
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
@@ -40,6 +41,13 @@ async def chat(
     与 OpenAI 兼容：`data: {"choices":[{"delta":{"content":"..."}}]}`。
     """
     lc_messages = _body_to_lc_messages(body)
+    last_preview = (body.messages[-1].content or "")[:120] if body.messages else ""
+    logger.info(
+        "ai_chat user_id={} lc_messages_count={} last_user_preview={!r}",
+        user.id,
+        len(lc_messages),
+        last_preview,
+    )
     if not lc_messages:
         raise HTTPException(status_code=400, detail="至少需要一条用户消息")
 

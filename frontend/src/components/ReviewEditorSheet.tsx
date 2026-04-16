@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import type { RegionProvince, Review } from "../api";
-import { createReview, deleteUploadedImage, updateReview, uploadReviewImage } from "../api";
+import type { AttachmentItem, RegionProvince, Review, ReviewPayload, ReviewPoiSuggestion } from "../api";
+import {
+  createReview,
+  deleteUploadedImage,
+  fetchReviewLocationSuggestions,
+  updateReview,
+  uploadReviewImage,
+  uploadReviewVideo,
+  mergeReviewMedia,
+} from "../api";
 import { RECOMMEND_TIERS, type RecommendTier } from "../recommendTier";
-import { ReviewImageGallery } from "./ReviewImageGallery";
+import { ReviewMediaGallery } from "./ReviewMediaGallery";
 
 /** 新建时的默认地点（与 app/data/regions.json 一致） */
 export const DEFAULT_REVIEW_LOCATION = {
@@ -34,10 +42,19 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
   const [dishes, setDishes] = useState<string[]>([""]);
   const [content, setContent] = useState("");
   const [recommendTier, setRecommendTier] = useState<RecommendTier>("人上人");
-  const [images, setImages] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [imgBusy, setImgBusy] = useState(false);
+  const [videoBusy, setVideoBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
+  const [locBusy, setLocBusy] = useState(false);
+  const [locModal, setLocModal] = useState<{
+    suggestions: ReviewPoiSuggestion[];
+    /** 当前展示第几条（0..2，对应高德返回顺序的前 3 条） */
+    index: number;
+    basePayload: ReviewPayload;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,7 +76,7 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
           ? (initial.recommend_tier as RecommendTier)
           : "人上人",
       );
-      setImages(Array.isArray(initial.images) ? [...initial.images] : []);
+      setAttachments(mergeReviewMedia(initial));
     } else {
       setRestaurantName("");
       setDiningType("dine_in");
@@ -74,7 +91,7 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       setDishes([""]);
       setContent("");
       setRecommendTier("人上人");
-      setImages([]);
+      setAttachments([]);
     }
     setError(null);
   }, [initial]);
@@ -85,6 +102,9 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
     ([] as string[]);
   const districts =
     regions.find((p) => p.name === province)?.cities.find((c) => c.name === city)?.districts ?? [];
+
+  const imgCount = attachments.filter((a) => a.type === "image").length;
+  const vidCount = attachments.filter((a) => a.type === "video").length;
 
   const addDishRow = () => setDishes((d) => [...d, ""]);
 
@@ -104,16 +124,18 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       return false;
     };
     try {
-      let cur = [...images];
+      let cur = [...attachments];
+      let nImg = cur.filter((a) => a.type === "image").length;
       let attempted = 0;
       for (const file of arr) {
-        if (cur.length >= 9) break;
+        if (nImg >= 9) break;
         if (!isLikelyImage(file)) continue;
         attempted += 1;
         const { path } = await uploadReviewImage(file);
-        cur = [...cur, path];
+        cur = [...cur, { type: "image" as const, path }];
+        nImg += 1;
       }
-      setImages(cur.slice(0, 9));
+      setAttachments(cur);
       if (attempted === 0 && arr.length > 0) {
         setError("未识别为可上传图片（手机相册常无 MIME，请选 JPG/PNG；苹果「高效」格式为 HEIC，本应用已支持）");
       }
@@ -124,7 +146,7 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
     }
   };
 
-  const removeImage = async (p: string) => {
+  const removeMedia = async (p: string) => {
     if (!isEdit) {
       try {
         await deleteUploadedImage(p);
@@ -132,29 +154,47 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
         /* 仍从列表移除 */
       }
     }
-    setImages((im) => im.filter((x) => x !== p));
+    setAttachments((list) => list.filter((x) => x.path !== p));
   };
 
-  const save = async () => {
+  const handlePickVideos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const arr = input.files && input.files.length > 0 ? Array.from(input.files) : [];
+    input.value = "";
+    if (!arr.length) return;
+    setVideoBusy(true);
     setError(null);
-    if (!restaurantName.trim()) {
-      setError("请填写餐馆名称");
-      return;
+    try {
+      let cur = [...attachments];
+      let nVid = cur.filter((a) => a.type === "video").length;
+      for (const file of arr) {
+        if (nVid >= 3) break;
+        const ok =
+          file.type.startsWith("video/") || /\.(mp4|webm|mov)$/i.test(file.name) || (!file.type && file.size > 0);
+        if (!ok) continue;
+        const { path } = await uploadReviewVideo(file);
+        cur = [...cur, { type: "video" as const, path }];
+        nVid += 1;
+      }
+      setAttachments(cur);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "视频上传失败");
+    } finally {
+      setVideoBusy(false);
     }
-    if (!city.trim()) {
-      setError("请选择城市");
-      return;
-    }
-    if (avgPrice === "" || Number.isNaN(Number(avgPrice)) || Number(avgPrice) < 0) {
-      setError("请填写有效的人均价格");
-      return;
-    }
+  };
+
+  const validateForm = (): string | null => {
+    if (!restaurantName.trim()) return "请填写餐馆名称";
+    if (!city.trim()) return "请选择城市";
+    if (avgPrice === "" || Number.isNaN(Number(avgPrice)) || Number(avgPrice) < 0) return "请填写有效的人均价格";
+    if (!content.trim()) return "请填写评价";
+    return null;
+  };
+
+  const buildPayload = (): ReviewPayload => {
     const dishList = dishes.map((x) => x.trim()).filter(Boolean);
-    if (!content.trim()) {
-      setError("请填写评价");
-      return;
-    }
-    const payload = {
+    return {
       restaurant_name: restaurantName.trim(),
       dining_type: diningType,
       province,
@@ -166,16 +206,55 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       avg_price: Number(avgPrice),
       dishes: dishList,
       recommend_tier: recommendTier,
-      images,
+      attachments,
+      images: attachments.filter((a) => a.type === "image").map((a) => a.path),
+      videos: attachments.filter((a) => a.type === "video").map((a) => a.path),
       content: content.trim(),
     };
+  };
+
+  const requestLocationStep = async () => {
+    setError(null);
+    const v = validateForm();
+    if (v) {
+      setError(v);
+      return;
+    }
+    setLocBusy(true);
+    try {
+      const { suggestions } = await fetchReviewLocationSuggestions({
+        restaurant_name: restaurantName.trim(),
+        city: city.trim(),
+        district: district.trim(),
+      });
+      if (!suggestions.length) {
+        setError("高德未返回匹配位置，请核对店名与城市后重试");
+        return;
+      }
+      setLocModal({ suggestions, index: 0, basePayload: buildPayload() });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "位置检索失败");
+    } finally {
+      setLocBusy(false);
+    }
+  };
+
+  const confirmLocationAndSave = async (s: ReviewPoiSuggestion) => {
+    if (!locModal) return;
+    const payload: ReviewPayload = {
+      ...locModal.basePayload,
+      latitude: s.latitude,
+      longitude: s.longitude,
+    };
     setSaving(true);
+    setError(null);
     try {
       if (isEdit && initial) {
         await updateReview(initial.id, payload);
       } else {
         await createReview(payload);
       }
+      setLocModal(null);
       await onSuccess();
     } catch (e) {
       setError(e instanceof Error ? e.message : "保存失败");
@@ -183,6 +262,111 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
       setSaving(false);
     }
   };
+
+  let locationConfirmOverlay: React.ReactNode = null;
+  if (locModal) {
+    const cur = locModal.suggestions[locModal.index];
+    const total = locModal.suggestions.length;
+    const step = locModal.index + 1;
+    if (cur) {
+      const handleLocationNo = () => {
+        if (saving) return;
+        if (locModal.index < locModal.suggestions.length - 1) {
+          setLocModal({ ...locModal, index: locModal.index + 1 });
+        } else {
+          const n = locModal.suggestions.length;
+          setLocModal(null);
+          setError(`在返回的 ${n} 条候选中均未确认，未保存。可修改店名或地区后重试。`);
+        }
+      };
+      locationConfirmOverlay = (
+        <div
+          role="dialog"
+          aria-modal
+          aria-label="确认店铺位置"
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.55)",
+              zIndex: 200,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 16,
+            }}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !saving) setLocModal(null);
+          }}
+        >
+          <div
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 14,
+              padding: 20,
+              width: "100%",
+              maxWidth: 420,
+              maxHeight: "88vh",
+              overflow: "auto",
+              boxShadow: "0 12px 48px rgba(0,0,0,0.45)",
+            }}
+          >
+            <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 4 }}>确认店铺位置</div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
+              高德检索结果 · 第 {step} / {total} 个候选
+            </div>
+            <div
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                padding: 12,
+                marginBottom: 14,
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: 16 }}>{cur.name}</div>
+              {cur.address && (
+                <div style={{ fontSize: 14, marginTop: 8, lineHeight: 1.6, color: "var(--fg)" }}>
+                  {cur.address}
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12 }}>
+              这是您要记录的店铺吗？点「是」提交，点「否」查看下一条。
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ flex: 1, width: "auto" }}
+                disabled={saving}
+                onClick={() => void confirmLocationAndSave(cur)}
+              >
+                {saving ? "保存中…" : "是"}
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ flex: 1, width: "auto" }}
+                disabled={saving}
+                onClick={handleLocationNo}
+              >
+                否
+              </button>
+            </div>
+            <button
+              type="button"
+              className="btn-ghost"
+              style={{ width: "100%", marginTop: 10 }}
+              disabled={saving}
+              onClick={() => setLocModal(null)}
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      );
+    }
+  }
 
   return (
     <div
@@ -192,7 +376,12 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="sheet" role="dialog" aria-modal onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className="sheet"
+        role="dialog"
+        aria-modal
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <div style={{ fontWeight: 800, fontSize: 18 }}>{isEdit ? "编辑点评" : "记一笔"}</div>
           <button type="button" className="btn-ghost" style={{ width: "auto", padding: "8px 12px" }} onClick={onClose}>
@@ -352,7 +541,7 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
         </button>
 
         <label className="label" style={{ marginTop: 12 }}>
-          配图（最多 9 张）
+          配图与视频（图最多 9 张、视频最多 3 个）
         </label>
         <input
           ref={fileRef}
@@ -362,20 +551,39 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
           hidden
           onChange={(e) => void handlePickImages(e)}
         />
+        <input
+          ref={videoRef}
+          type="file"
+          accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+          multiple
+          hidden
+          onChange={(e) => void handlePickVideos(e)}
+        />
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <button
             type="button"
             className="btn-ghost"
             style={{ width: "auto" }}
-            disabled={imgBusy || images.length >= 9}
+            disabled={imgBusy || imgCount >= 9}
             onClick={() => fileRef.current?.click()}
           >
-            {imgBusy ? "上传中…" : images.length >= 9 ? "已达 9 张" : "选择图片"}
+            {imgBusy ? "上传图片中…" : imgCount >= 9 ? "图片已满 9 张" : "添加图片"}
           </button>
-          <span style={{ fontSize: 12, color: "var(--muted)" }}>已选 {images.length}/9</span>
+          <button
+            type="button"
+            className="btn-ghost"
+            style={{ width: "auto" }}
+            disabled={videoBusy || vidCount >= 3}
+            onClick={() => videoRef.current?.click()}
+          >
+            {videoBusy ? "上传视频中…" : vidCount >= 3 ? "视频已满 3 个" : "添加视频"}
+          </button>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>
+            图 {imgCount}/9 · 视频 {vidCount}/3
+          </span>
         </div>
-        {images.length > 0 && (
-          <ReviewImageGallery paths={images} editable onRemove={(p) => void removeImage(p)} />
+        {attachments.length > 0 && (
+          <ReviewMediaGallery items={attachments} editable onRemove={(p) => void removeMedia(p)} />
         )}
 
         <label className="label">详细说一说吧</label>
@@ -389,9 +597,17 @@ export function ReviewEditorSheet({ regions, initial, onClose, onSuccess }: Prop
         />
         <div style={{ textAlign: "right", fontSize: 12, color: "var(--muted)" }}>{content.length}/500</div>
 
-        <button type="button" className="btn-primary" style={{ marginTop: 8 }} disabled={saving} onClick={() => void save()}>
-          {saving ? "保存中…" : isEdit ? "保存修改" : "发布"}
+        <button
+          type="button"
+          className="btn-primary"
+          style={{ marginTop: 8 }}
+          disabled={saving || locBusy}
+          onClick={() => void requestLocationStep()}
+        >
+          {saving ? "保存中…" : locBusy ? "检索位置中…" : isEdit ? "保存修改" : "发布"}
         </button>
+
+        {locationConfirmOverlay}
       </div>
     </div>
   );

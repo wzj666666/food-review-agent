@@ -13,6 +13,7 @@ import asyncio
 import contextvars
 import json
 import pprint
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -25,6 +26,7 @@ from langchain_openai import ChatOpenAI
 
 from app.config import settings
 from app.database import SessionLocal
+from app.logger import logger
 from app.models import Review
 
 # 参谋 SSE 执行 DB 工具时注入当前登录用户 id，避免模型传入他人 user_id 越权查询
@@ -316,6 +318,85 @@ def _review_row_overall(r: Review) -> float:
     return (r.taste_score + r.service_score + r.environment_score + r.value_score) / 4.0
 
 
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """两点间球面距离（km）。"""
+    import math
+    R = 6371.0
+    d_lat = math.radians(lat2 - lat1)
+    d_lng = math.radians(lng2 - lng1)
+    a = math.sin(d_lat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lng / 2) ** 2
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+@tool
+def find_nearby_reviewed_restaurants(
+    user_id: int,
+    center_lng: float,
+    center_lat: float,
+    radius_km: float = 5.0,
+    query_scope: str = "all",
+) -> str:
+    """按经纬度筛选点评库中的餐馆，返回距中心点 `radius_km` 公里以内的点评，按距离升序。
+
+    - `center_lng` / `center_lat`：中心点经纬度（高德 GCJ-02 坐标，先用 `amap_geocode_geo` 获取）。
+    - `radius_km`：搜索半径（公里），默认 5.0。
+    - `query_scope`：`"mine"` 只查本人，`"all"` 全站（默认 all）。
+    - 只有提交时经过高德选点确认的点评才有坐标；无坐标的点评不出现在结果中。
+    """
+    auth = advisor_auth_user_id.get()
+    if auth is None:
+        return json.dumps({"ok": False, "info": "未绑定登录用户"}, ensure_ascii=False)
+    uid = int(auth)
+    if int(user_id) != uid:
+        return json.dumps({"ok": False, "info": f"user_id 不一致：传入 {user_id}，当前用户 {uid}"}, ensure_ascii=False)
+    scope = (query_scope or "all").strip().lower()
+    if scope not in ("mine", "all"):
+        return json.dumps({"ok": False, "info": "query_scope 只能是 mine 或 all"}, ensure_ascii=False)
+
+    db = SessionLocal()
+    try:
+        q = db.query(Review).options(joinedload(Review.author))
+        if scope == "mine":
+            q = q.filter(Review.user_id == uid)
+        # 只取有坐标的记录
+        q = q.filter(Review.latitude.isnot(None), Review.longitude.isnot(None))
+        rows = q.all()
+        items: list[dict[str, Any]] = []
+        for r in rows:
+            r_lat = float(r.latitude)  # type: ignore[arg-type]
+            r_lng = float(r.longitude)  # type: ignore[arg-type]
+            dist = _haversine_km(center_lat, center_lng, r_lat, r_lng)
+            if dist > radius_km:
+                continue
+            tier = getattr(r, "recommend_tier", None) or "人上人"
+            author_username = getattr(r.author, "username", "") if r.author else ""
+            items.append({
+                "review_id": r.id,
+                "author_username": author_username,
+                "restaurant_name": r.restaurant_name,
+                "city": r.city,
+                "district": r.district or "",
+                "distance_km": round(dist, 2),
+                "dining_type": r.dining_type,
+                "recommend_tier": tier,
+                "overall_score": round(_review_row_overall(r), 2),
+                "avg_price": r.avg_price,
+                "content_preview": (r.content or "")[:200],
+                "created_at": r.created_at.isoformat() if r.created_at else "",
+            })
+        items.sort(key=lambda x: x["distance_km"])
+        return _truncate_json({
+            "ok": True,
+            "center": {"lng": center_lng, "lat": center_lat},
+            "radius_km": radius_km,
+            "query_scope": scope,
+            "count": len(items),
+            "reviews": items,
+        })
+    finally:
+        db.close()
+
+
 @tool
 def list_user_reviewed_restaurants(user_id: int, query_scope: str = "mine") -> str:
     """查询应用内点评记录（餐馆名、地区、推荐度、综合分、人均、正文摘要、`author_username` 等）。
@@ -399,25 +480,30 @@ AMAP_TOOLS = [
     amap_district,
 ]
 
-ADVISOR_TOOLS = [*AMAP_TOOLS, list_user_reviewed_restaurants]
+ADVISOR_TOOLS = [*AMAP_TOOLS, list_user_reviewed_restaurants, find_nearby_reviewed_restaurants]
 
 SYSTEM_PROMPT = """你是美食AI参谋：闲聊、美食与点评常识、一般知识或解题思路等，可直接用自然语言回答，不必调用工具。
 
 ## 推荐餐馆、点评与点评库（优先按下面执行）
-工具名：`list_user_reviewed_restaurants`。参数 `user_id` **始终只填**系统消息里给出的当前登录用户 id（鉴权用，不得改他人 id）。
+参数 `user_id` **始终只填**系统消息里给出的当前登录用户 id（鉴权用，不得改他人 id）。
 
-1) **用户要推荐、想参考点评，但没有给出具体地点**（例如「推荐几家馆子」「最近大家吃了啥值得去」）：**只调用本工具，且 `query_scope` 必须为 `"all"`**，依据全站用户真实点评作答。**不要**为此去调高德周边搜/关键字搜（没有锚点地点就不要硬搜地图）。
-2) **用户要推荐或点评，且给出了可检索的具体地点**（例如「三里屯附近吃啥」「望京有什么火锅」）：**先**用本工具 `query_scope="all"` 拉全站点评；**再**用下方「高德」流程查该地点附近的餐馆/POI；回答时把**点评库里的真实体验**与**高德返回的周边候选（店名、距离等）**合在一起说明，互相补充。
-3) **用户只问本人记录**（「我写过哪些」「我去过哪些店」）：`query_scope="mine"`（可省略，默认即 mine），仍只填上述 `user_id`。
+1) **用户要推荐、想参考点评，但没有给出具体地点**（例如「推荐几家馆子」「最近大家吃了啥值得去」）：
+   - 调用 `list_user_reviewed_restaurants`，`query_scope="all"`，依据全站真实点评作答。
+   - **不要**为此去调高德周边搜/关键字搜（没有锚点地点就不要硬搜地图）。
+
+2) **用户提到「某地附近」「某地旁边」或明确给出了可检索的地点**（例如「三里屯附近吃啥」「望京有什么火锅」「离西湖 3 公里内有哪些」）：
+   - **步骤 A**：先用 `amap_geocode_geo` 把该地名转为经纬度（location 字段格式为「经度,纬度」）。
+   - **步骤 B**：立即调用 `find_nearby_reviewed_restaurants`，传入步骤 A 得到的 `center_lng`/`center_lat`，`radius_km` 默认 5.0（用户说「附近」或「不远」时用 5；说「很近」时可用 2；说「周边」「一带」时可用 8～10）。
+   - **步骤 C**：如库内结果不足 5 条，再用 `amap_place_around` 补充高德 POI，与库内结果合并后一起呈现。
+   - 回答时标注每条点评距离（来自 `distance_km` 字段）。
+
+3) **用户只问本人记录**（「我写过哪些」「我去过哪些店」）：
+   - 调用 `list_user_reviewed_restaurants`，`query_scope="mine"`。
+
+以上用中文回答；用户未指定条数时默认约 5 条；列店名、类型、距离（若有）、评分、地址。
 
 ## 高德地图工具（有明确地理/路线/天气需求时用）
 需要可核验的店址、坐标、距离、路线、天气、行政区等时**必须**调用高德工具，未调用不得编造；用户**没有**地点锚点且属于上节 1) 时，不要为了显得专业而强行搜地图。
-
-「某地附近美食/餐厅」等检索建议顺序：
-    1) `amap_geocode_geo` 把地名与上级城市转为经纬度；
-    2) `amap_place_around`，location 填「经度,纬度」，keywords 可用「美食」等，radius 可用 2000～5000 米；
-    3) 不理想时可用 `amap_input_tips` 联想，再编码或 `amap_place_text`。
-    4) 用中文回答；用户未指定条数时默认约 5 条；列店名、类型、距离（若有）、评分、地址。
 
 路径规划：`amap_route_driving` / `amap_route_walking` / `amap_route_bicycling` / `amap_route_electrobike` / `amap_route_transit`；起终点均为「经度,纬度」。公交须传 citycode：`amap_route_transit` 的 city1、city2（同城可只填 city1）。
 """
@@ -425,18 +511,25 @@ SYSTEM_PROMPT = """你是美食AI参谋：闲聊、美食与点评常识、一�
 
 def _make_llm() -> ChatOpenAI:
     base = settings.ai_base_url.rstrip("/")
+    proxy = (settings.ai_http_proxy or "").strip() or None
+    timeout = httpx.Timeout(120.0)
+    client_kw: dict[str, Any] = {}
+    if proxy:
+        client_kw["http_async_client"] = httpx.AsyncClient(proxy=proxy, timeout=timeout)
+        client_kw["http_client"] = httpx.Client(proxy=proxy, timeout=timeout)
     return ChatOpenAI(
         model=settings.ai_model,
-        base_url=f"{base}/v1",
+        base_url=f"{base}",
         api_key=(settings.ai_api_key or "EMPTY").strip() or "EMPTY",
         temperature=0.2,
         timeout=120.0,
         streaming=True,
+        **client_kw,
     )
 
 
 # 修改 _make_llm / 工具集 / SYSTEM_PROMPT 后递增，避免进程内仍缓存旧图
-_AGENT_GRAPH_VERSION = 6
+_AGENT_GRAPH_VERSION = 7
 _agent_graph: Any | None = None
 _agent_graph_built_at: int = 0
 
@@ -475,6 +568,7 @@ def _message_text(message: BaseMessage) -> str:
 
 async def _run_tool_call(tool_call: dict[str, Any]) -> ToolMessage:
     """执行单个 LangChain tool_call 并包装成 ToolMessage。"""
+    t_tool = time.perf_counter()
     name = str(tool_call.get("name") or "")
     call_id = str(tool_call.get("id") or "")
     raw_args = tool_call.get("args") or {}
@@ -496,8 +590,19 @@ async def _run_tool_call(tool_call: dict[str, Any]) -> ToolMessage:
     try:
         result = await tool_obj.ainvoke(args)
         content = result if isinstance(result, str) else _truncate_json(result)
+        logger.info(
+            "ai_sse tool_done name={} ms={:.1f}",
+            name,
+            (time.perf_counter() - t_tool) * 1000,
+        )
         return ToolMessage(content=content, name=name, tool_call_id=call_id, status="success")
     except Exception as e:  # noqa: BLE001 - 工具异常应回传给模型继续兜底
+        logger.warning(
+            "ai_sse tool_fail name={} ms={:.1f} err={}",
+            name,
+            (time.perf_counter() - t_tool) * 1000,
+            e,
+        )
         content = json.dumps({"status": "0", "info": f"工具 {name} 执行失败: {e}"}, ensure_ascii=False)
         return ToolMessage(content=content, name=name, tool_call_id=call_id, status="error")
 
@@ -515,6 +620,7 @@ async def iter_amap_advisor_sse(
     遇到没有 tool_calls 的最终回答轮时，直接把 text chunks 逐段转发给前端。
     """
     ctx_token = advisor_auth_user_id.set(int(auth_user_id))
+    t_sse_start = time.perf_counter()
     try:
         user_ctx = (
             f"\n\n【会话身份】当前登录用户 user_id={int(auth_user_id)}"
@@ -525,6 +631,7 @@ async def iter_amap_advisor_sse(
 
         yield b":\n\n"
 
+        t_before_llm = time.perf_counter()
         llm = _make_llm()
         if not _amap_key():
             llm_with_tools = llm.bind_tools([list_user_reviewed_restaurants])
@@ -539,20 +646,41 @@ async def iter_amap_advisor_sse(
             llm_with_tools = llm.bind_tools(ADVISOR_TOOLS)
             dialogue = [SystemMessage(content=full_system), *messages]
 
+        t_after_bind = time.perf_counter()
+        logger.info(
+            "ai_sse user_id={} phase=prep make_llm+bind+dialogue_ms={:.1f} since_start_ms={:.1f}",
+            auth_user_id,
+            (t_after_bind - t_before_llm) * 1000,
+            (t_after_bind - t_sse_start) * 1000,
+        )
+
         trace_messages: list[Any] = list(messages)
         max_turns = 8
         streamed_any_text = False
 
         try:
-            for _ in range(max_turns):
+            for turn in range(max_turns):
                 full_chunk = None
                 saw_tool_chunks = False
                 started_streaming_this_turn = False
                 pending_text_chunks: list[str] = []
+                first_llm_chunk_logged = False
+                t_stream_start = time.perf_counter()
 
                 async for chunk in llm_with_tools.astream(dialogue):
+                    if not first_llm_chunk_logged:
+                        first_llm_chunk_logged = True
+                        logger.info(
+                            "ai_sse user_id={} turn={} phase=first_llm_chunk since_stream_start_ms={:.1f} since_sse_start_ms={:.1f}",
+                            auth_user_id,
+                            turn,
+                            (time.perf_counter() - t_stream_start) * 1000,
+                            (time.perf_counter() - t_sse_start) * 1000,
+                        )
                     full_chunk = chunk if full_chunk is None else full_chunk + chunk
 
+                    # 流式前几包经常是 content 为空的 AIMessageChunk：仅携带 run id、元数据或占位，
+                    # 并非模型「打了许多空格」；首个可见字出现在第一个带文本的 delta 里。
                     tool_call_chunks = getattr(chunk, "tool_call_chunks", None) or []
                     if tool_call_chunks:
                         saw_tool_chunks = True
@@ -560,7 +688,6 @@ async def iter_amap_advisor_sse(
                     text_piece = getattr(chunk, "text", None)
                     if not isinstance(text_piece, str) or not text_piece:
                         text_piece = _message_text(chunk)
-
                     if not text_piece:
                         continue
 
@@ -573,13 +700,31 @@ async def iter_amap_advisor_sse(
                     if not started_streaming_this_turn and text_piece.strip():
                         for buffered in pending_text_chunks:
                             if buffered:
+                                logger.info(f"buffered: {buffered}")
                                 yield f"data: {_sse_openai_delta(buffered)}\n\n".encode()
                         started_streaming_this_turn = True
                         streamed_any_text = True
+                        logger.info(
+                            "ai_sse user_id={} turn={} phase=【first_token_to_client】 since_sse_start_ms={:.1f} since_stream_start_ms={:.1f}",
+                            auth_user_id,
+                            turn,
+                            (time.perf_counter() - t_sse_start) * 1000,
+                            (time.perf_counter() - t_stream_start) * 1000,
+                        )
                         continue
 
                     if started_streaming_this_turn:
                         yield f"data: {_sse_openai_delta(text_piece)}\n\n".encode()
+
+                t_after_stream = time.perf_counter()
+                logger.info(
+                    "ai_sse user_id={} turn={} phase=llm_stream_end wall_ms={:.1f} saw_tool_chunks={} started_text_stream={}",
+                    auth_user_id,
+                    turn,
+                    (t_after_stream - t_stream_start) * 1000,
+                    saw_tool_chunks,
+                    started_streaming_this_turn,
+                )
 
                 if full_chunk is None:
                     break
@@ -602,6 +747,12 @@ async def iter_amap_advisor_sse(
                     if fallback_text:
                         yield f"data: {_sse_openai_delta(fallback_text)}\n\n".encode()
                         streamed_any_text = True
+                        logger.info(
+                            "ai_sse user_id={} turn={} phase=first_token_fallback since_sse_start_ms={:.1f}",
+                            auth_user_id,
+                            turn,
+                            (time.perf_counter() - t_sse_start) * 1000,
+                        )
                 trace_messages.append(final_ai)
                 break
             else:
@@ -640,14 +791,12 @@ def _final_text(messages: list[BaseMessage]) -> str:
 
 
 def _debug_print_messages(msgs: list[Any]) -> None:
-    """终端调试：把 Agent 返回的消息列表格式化打印。"""
-    print("\n" + "=" * 72, flush=True)
-    print("amap agent · messages", flush=True)
-    print("=" * 72, flush=True)
+    """DEBUG_AMAP_AGENT=1 时：将 Agent 消息列表格式化写入日志（含 logs/app.log）。"""
+    lines: list[str] = ["", "=" * 72, "amap agent · messages", "=" * 72]
     for i, m in enumerate(msgs):
         header = f"[{i}] {type(m).__name__}"
-        print("-" * len(header), flush=True)
-        print(header, flush=True)
+        lines.append("-" * len(header))
+        lines.append(header)
         if hasattr(m, "model_dump"):
             blob = m.model_dump()
         else:
@@ -655,8 +804,9 @@ def _debug_print_messages(msgs: list[Any]) -> None:
         text = pprint.pformat(blob, width=96, sort_dicts=False, compact=False)
         if len(text) > 12_000:
             text = text[:12_000] + "\n…(truncated)"
-        print(text, flush=True)
-    print("=" * 72 + "\n", flush=True)
+        lines.append(text)
+    lines.append("=" * 72)
+    logger.info("\n".join(lines))
 
 
 async def arun_amap_agent(user_query: str) -> str:

@@ -8,7 +8,11 @@ from pathlib import Path
 from app.database import ROOT
 
 UPLOADS_ROOT = ROOT / "uploads"
-SAFE_NAME = re.compile(r"^[a-f0-9]{32}\.(jpg|png|gif|webp|heic)$", re.IGNORECASE)
+# 配图 + 点评视频：均为 32 位 hex 文件名
+SAFE_NAME = re.compile(
+    r"^[a-f0-9]{32}\.(jpg|png|gif|webp|heic|mp4|webm|mov)$",
+    re.IGNORECASE,
+)
 
 
 def uploads_url_dir(user_id: int) -> str:
@@ -31,7 +35,7 @@ def fs_path_for_url(url_path: str, owner_user_id: int) -> Path | None:
     return UPLOADS_ROOT / uid_s / fname
 
 
-def parse_images_json(raw: str | None) -> list[str]:
+def _json_path_list(raw: str | None) -> list[str]:
     if not raw or not raw.strip():
         return []
     try:
@@ -41,6 +45,14 @@ def parse_images_json(raw: str | None) -> list[str]:
     except json.JSONDecodeError:
         pass
     return []
+
+
+def parse_images_json(raw: str | None) -> list[str]:
+    return _json_path_list(raw)
+
+
+def parse_videos_json(raw: str | None) -> list[str]:
+    return _json_path_list(raw)
 
 
 def delete_files_for_paths(paths: list[str], owner_user_id: int) -> None:

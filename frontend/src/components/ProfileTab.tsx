@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RegionProvince, Review, UserPublic } from "../api";
-import { deleteReview, fetchMyReviews, fetchRegions, fetchStats, updateMe } from "../api";
+import { deleteReview, fetchMyReviews, fetchRegions, fetchStats, mergeReviewMedia, updateMe } from "../api";
 import { RecommendTierBadge } from "../recommendTier";
 import { ReviewEditorSheet } from "./ReviewEditorSheet";
-import { ReviewImageGallery } from "./ReviewImageGallery";
+import { ReviewMediaGallery } from "./ReviewMediaGallery";
 
 type Props = {
   user: UserPublic;
@@ -246,7 +246,7 @@ export function ProfileTab({ user, onUserUpdated, onLogout }: Props) {
             {r.dishes.length > 0 && (
               <div style={{ marginTop: 6, fontSize: 13 }}>推荐菜：{r.dishes.join("、")}</div>
             )}
-            <ReviewImageGallery paths={r.images ?? []} />
+            <ReviewMediaGallery items={mergeReviewMedia(r)} />
             {r.content && (
               <div
                 style={{

@@ -5,6 +5,11 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.recommend_tier import RecommendTier
 
+
+class AttachmentItem(BaseModel):
+    type: Literal["image", "video"]
+    path: str = Field(min_length=4, max_length=512)
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -52,14 +57,27 @@ class ReviewCreate(BaseModel):
     avg_price: int = Field(ge=0, le=999999)
     dishes: list[str] = Field(default_factory=list)
     recommend_tier: RecommendTier = Field(default="人上人", description="推荐度：夯 / 顶级 / 人上人 / NPC / 拉完了")
+    latitude: float | None = Field(default=None, ge=-90.0, le=90.0, description="纬度（高德，选点确认后必填）")
+    longitude: float | None = Field(default=None, ge=-180.0, le=180.0, description="经度（高德，选点确认后必填）")
     content: str = Field(min_length=1, max_length=500)
-    images: list[str] = Field(default_factory=list, description="配图 URL 路径，最多 9 张")
+    images: list[str] = Field(default_factory=list, description="配图 URL（与 videos 二选一来源；有 attachments 时以 attachments 为准）")
+    videos: list[str] = Field(default_factory=list, description="视频 URL")
+    attachments: list[AttachmentItem] = Field(
+        default_factory=list,
+        description="配图与视频穿插顺序；为空时由 images+videos 拼接（先全部图再全部视频）",
+    )
 
     @field_validator("images")
     @classmethod
     def cap_images(cls, v: list[str]) -> list[str]:
         out = [x.strip() for x in v if x and str(x).strip()]
         return out[:9]
+
+    @field_validator("videos")
+    @classmethod
+    def cap_videos(cls, v: list[str]) -> list[str]:
+        out = [x.strip() for x in v if x and str(x).strip()]
+        return out[:3]
 
     @field_validator("dishes")
     @classmethod
@@ -75,6 +93,26 @@ class ReviewCreate(BaseModel):
             object.__setattr__(self, "environment_score", mid)
         elif self.service_score is None or self.environment_score is None:
             raise ValueError("堂食需填写服务与环境评分")
+        return self
+
+    @model_validator(mode="after")
+    def normalize_media_attachments(self):
+        if self.attachments:
+            att = list(self.attachments)
+        else:
+            att = [AttachmentItem(type="image", path=p) for p in self.images] + [
+                AttachmentItem(type="video", path=p) for p in self.videos
+            ]
+        imgs = [a.path for a in att if a.type == "image"]
+        vids = [a.path for a in att if a.type == "video"]
+        if len(imgs) > 9 or len(vids) > 3:
+            raise ValueError("配图最多 9 张，视频最多 3 个")
+        paths = [a.path for a in att]
+        if len(set(paths)) != len(paths):
+            raise ValueError("媒体路径重复")
+        object.__setattr__(self, "attachments", att)
+        object.__setattr__(self, "images", imgs)
+        object.__setattr__(self, "videos", vids)
         return self
 
 
@@ -95,12 +133,35 @@ class ReviewOut(BaseModel):
     dishes: list[str]
     recommend_tier: str
     images: list[str] = Field(default_factory=list)
+    videos: list[str] = Field(default_factory=list)
+    attachments: list[AttachmentItem] = Field(default_factory=list)
     content: str
+    latitude: float | None = None
+    longitude: float | None = None
     created_at: datetime
     overall_score: float
 
     class Config:
         from_attributes = True
+
+
+class ReviewLocationSuggestIn(BaseModel):
+    restaurant_name: str = Field(min_length=1, max_length=128)
+    city: str = Field(default="", max_length=32)
+    district: str = Field(default="", max_length=32)
+
+
+class ReviewPoiSuggestion(BaseModel):
+    name: str
+    address: str
+    longitude: float
+    latitude: float
+    adcode: str = ""
+    type: str = ""
+
+
+class ReviewLocationSuggestOut(BaseModel):
+    suggestions: list[ReviewPoiSuggestion]
 
 
 class UploadedImagePath(BaseModel):

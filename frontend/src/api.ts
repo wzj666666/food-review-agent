@@ -75,6 +75,8 @@ export type UserPublic = {
   created_at: string;
 };
 
+export type AttachmentItem = { type: "image" | "video"; path: string };
+
 export type Review = {
   id: number;
   user_id: number;
@@ -92,10 +94,24 @@ export type Review = {
   dishes: string[];
   recommend_tier?: string;
   images: string[];
+  videos?: string[];
+  /** 有则按顺序展示（与图片/视频穿插）；旧数据仅有 images+videos 时前端合并 */
+  attachments?: AttachmentItem[];
   content: string;
+  latitude?: number | null;
+  longitude?: number | null;
   created_at: string;
   overall_score: number;
 };
+
+/** 列表/详情展示用：优先 attachments，否则先图后视频 */
+export function mergeReviewMedia(r: Pick<Review, "attachments" | "images" | "videos">): AttachmentItem[] {
+  if (r.attachments && r.attachments.length > 0) return r.attachments;
+  const out: AttachmentItem[] = [];
+  for (const p of r.images ?? []) out.push({ type: "image", path: p });
+  for (const p of r.videos ?? []) out.push({ type: "video", path: p });
+  return out;
+}
 
 export type RegionProvince = {
   name: string;
@@ -161,8 +177,33 @@ export type ReviewPayload = {
   dishes: string[];
   recommend_tier: "夯" | "顶级" | "人上人" | "NPC" | "拉完了";
   images?: string[];
+  videos?: string[];
+  attachments?: AttachmentItem[];
   content: string;
+  /** 提交前经高德检索弹窗确认后必填 */
+  latitude?: number;
+  longitude?: number;
 };
+
+export type ReviewPoiSuggestion = {
+  name: string;
+  address: string;
+  longitude: number;
+  latitude: number;
+  adcode?: string;
+  type?: string;
+};
+
+export async function fetchReviewLocationSuggestions(body: {
+  restaurant_name: string;
+  city: string;
+  district: string;
+}) {
+  return apiFetch("/api/reviews/location-suggestions", {
+    method: "POST",
+    body: JSON.stringify(body),
+  }) as Promise<{ suggestions: ReviewPoiSuggestion[] }>;
+}
 
 export async function uploadReviewImage(file: File): Promise<{ path: string }> {
   const token = getToken();
@@ -195,6 +236,32 @@ export async function deleteUploadedImage(path: string): Promise<void> {
     method: "POST",
     body: JSON.stringify({ path }),
   });
+}
+
+export async function uploadReviewVideo(file: File): Promise<{ path: string }> {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(apiUrl("/api/uploads/review-video"), {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  });
+  if (res.status === 401) {
+    setToken(null);
+    throw new Error("UNAUTHORIZED");
+  }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const j = (await res.json()) as { detail?: string };
+      if (typeof j.detail === "string") detail = j.detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+  return res.json() as Promise<{ path: string }>;
 }
 
 export async function createReview(body: ReviewPayload) {

@@ -177,7 +177,7 @@ export function AITab() {
         <textarea
           className="input"
           rows={2}
-          placeholder="输入消息，回车发送（Shift+回车换行）"
+          placeholder="输入消息"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {

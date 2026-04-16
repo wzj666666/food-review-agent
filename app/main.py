@@ -11,9 +11,9 @@ from app.database import Base, engine
 from app.routers import ai, auth, regions, reviews, uploads, user
 from app.upload_paths import UPLOADS_ROOT
 
-# Starlette 默认 multipart 单段约 1MB，超过会解析失败；与单张 10MB 配图上限对齐
-MultiPartParser.max_part_size = 12 * 1024 * 1024
-MultiPartParser.max_file_size = 12 * 1024 * 1024
+# Starlette 默认 multipart 单段约 1MB，超过会解析失败；配图 10MB、视频 80MB
+MultiPartParser.max_part_size = 85 * 1024 * 1024
+MultiPartParser.max_file_size = 85 * 1024 * 1024
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
@@ -58,6 +58,14 @@ def on_startup():
                 conn.execute(
                     text("ALTER TABLE reviews ADD COLUMN recommend_tier VARCHAR(16) NOT NULL DEFAULT '人上人'")
                 )
+            if "latitude" not in col_names:
+                conn.execute(text("ALTER TABLE reviews ADD COLUMN latitude REAL"))
+            if "longitude" not in col_names:
+                conn.execute(text("ALTER TABLE reviews ADD COLUMN longitude REAL"))
+            if "videos_json" not in col_names:
+                conn.execute(text("ALTER TABLE reviews ADD COLUMN videos_json TEXT NOT NULL DEFAULT '[]'"))
+            if "attachments_json" not in col_names:
+                conn.execute(text("ALTER TABLE reviews ADD COLUMN attachments_json TEXT NOT NULL DEFAULT '[]'"))
 
 
 @app.get("/api/health")

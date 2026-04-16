@@ -37,7 +37,13 @@ class Review(Base):
     avg_price: Mapped[int] = mapped_column(Integer, nullable=False)
     dishes_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON array of strings
     images_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON array of URL paths /uploads/uid/file
+    videos_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON array of video paths，最多 3 个
+    attachments_json: Mapped[str] = mapped_column(
+        Text, nullable=False, default="[]"
+    )  # JSON: [{"type":"image"|"video","path":"..."}] 穿插顺序
     recommend_tier: Mapped[str] = mapped_column(String(16), nullable=False, default="人上人", server_default="人上人")
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
     content: Mapped[str] = mapped_column(String(500), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RegionProvince, Review, SortKey } from "../api";
-import { fetchRegions, fetchReviews } from "../api";
+import { fetchRegions, fetchReviews, mergeReviewMedia } from "../api";
 import { formatDateTimeBeijing } from "../datetime";
 import { RecommendTierBadge } from "../recommendTier";
 import { ReviewEditorSheet } from "./ReviewEditorSheet";
-import { ReviewImageGallery } from "./ReviewImageGallery";
+import { ReviewMediaGallery } from "./ReviewMediaGallery";
 
 function diningLabel(t: string) {
   return t === "takeaway" ? "外卖" : "堂食";
@@ -213,7 +213,7 @@ export function ReviewsTab() {
                   {r.dishes.join("、")}
                 </div>
               )}
-              <ReviewImageGallery paths={r.images ?? []} />
+              <ReviewMediaGallery items={mergeReviewMedia(r)} />
               <ExpandableReviewContent text={r.content} />
               <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>{formatDateTimeBeijing(r.created_at)}</div>
             </article>
