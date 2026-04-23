@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # 仅作用于 LangChain ChatOpenAI（参谋）；留空则直连，不影响高德等其它 httpx 请求
     ai_http_proxy: str | None = Field(
         default=None,
-        description="环境变量 AI_HTTP_PROXY，例如 http://proxy-lan.example.com:1087（OpenRouter 等需翻墙时）",
+        description="环境变量 AI_HTTP_PROXY，例如 xxx（OpenRouter 等需翻墙时）",
     )
     # 注入 vLLM 的「全部点评」文本上限，避免上下文爆炸
     ai_reviews_context_max_chars: int = Field(default=120_000, description="环境变量 AI_REVIEWS_CONTEXT_MAX_CHARS")
