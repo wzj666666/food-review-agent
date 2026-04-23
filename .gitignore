@@ -14,3 +14,6 @@ frontend/android/capacitor-cordova-android-plugins/build/
 .env
 frontend/.env.local
 frontend/.env.production.local
+data/
+logs/
+log*
