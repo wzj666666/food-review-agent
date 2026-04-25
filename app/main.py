@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from starlette.formparsers import MultiPartParser
 
+from app.config import settings
 from app.database import Base, engine
 from app.routers import ai, auth, regions, reviews, uploads, user
 from app.upload_paths import UPLOADS_ROOT
@@ -28,7 +29,7 @@ app = FastAPI(title="个人点评", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
